@@ -147,6 +147,8 @@ All three modes keep the state guarantee across resizes. They differ in what the
 | Back animation | package slide | package slide | your `PageTransitionsTheme` |
 | Android predictive-back preview | lost (back is intercepted) | lost | full |
 | Page's snackbars / FABs while open | visible | hidden behind the detail | re-home into the detail's `Scaffold`, like normal navigation |
+| Screen readers see covered content | no — excluded while open | no — blocked while open | no — it's a page |
+| Escape dismisses (desktop) | yes, when focus is in the detail | yes, when focus is in the detail | yes — the route's own `DismissIntent` |
 | Hero discipline (`heroTag`s) | not needed | not needed | needed |
 
 Rule of thumb: `inline` when the surrounding chrome should stay present, `overlay` for a full-screen feel without real navigation, `route` when the detail should behave like a native page and inherit every platform back-gesture convention as it evolves. The per-value doc comments on `CompactDetailMode` carry the full contracts.

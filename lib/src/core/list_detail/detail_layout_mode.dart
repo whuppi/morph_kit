@@ -28,6 +28,10 @@ enum CompactDetailMode {
   ///   route that isn't one.
   /// - The page's snackbars, FABs, and bottom sheets render above the
   ///   layout as usual — nothing is hidden.
+  /// - Assistive tech gets route parity: the open detail scopes as a
+  ///   route, the covered list leaves the semantics tree, and
+  ///   `DismissIntent` (Escape on desktop) dismisses when the focus is
+  ///   inside the detail.
   ///
   /// Pick when the detail is part of the screen and the surrounding
   /// chrome should stay present.
@@ -46,6 +50,11 @@ enum CompactDetailMode {
   ///   hides them. Inherent to overlay stacking, not configurable.
   /// - Kept-alive multi-tab shells are handled: inactive tabs' overlays
   ///   suppress themselves (paint-probe) and reappear on return.
+  /// - Assistive tech gets route parity: the open detail scopes as a
+  ///   route, everything it covers leaves the semantics tree
+  ///   (`BlockSemantics` — the Drawer/ModalBarrier primitive), and
+  ///   `DismissIntent` (Escape on desktop) dismisses when the focus is
+  ///   inside the detail.
   ///
   /// Pick for full-screen details with instant resize morphs, when the
   /// page's own snackbars/FABs are not needed while a detail is open.

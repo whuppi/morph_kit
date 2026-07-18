@@ -26,6 +26,7 @@ while an active row is not `DONE` or `WONT_DO`. Statuses: `DONE` ·
 | True-route compact mode (`CompactDetailMode.route`) | DONE | Real `PageRoute` with the app's `PageTransitionsTheme` (predictive back, edge swipes); atomic resize swaps reparent the detail between route and pane; paint-probe suppression for hidden tabs; the feared pop-handoff never existed — dismissal kills the detail by design, so predictive back is free |
 | Empty state builder (expanded, no selection) | DONE | Nullable; `IconMessageEmpty` shipped as a convenience |
 | RTL support | DONE | Slide, swipe, and divider drag are direction-aware |
+| A11y route parity for inline/overlay details | DONE | Open detail scopes as a route; covered content leaves the semantics tree (`ExcludeSemantics` / `BlockSemantics`); `DismissIntent` (Escape) dismisses with focus inside |
 | Deep-link-friendly controller semantics | DONE | Initial selection renders without animation; example ships URL sync |
 
 ## AdaptiveSplit

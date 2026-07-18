@@ -98,9 +98,15 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
 
     Widget body = Stack(
       children: [
-        // List — always rendered behind detail (visible during swipe peek)
+        // List — always rendered behind detail (visible during swipe peek),
+        // but hidden from assistive tech while covered: a screen reader
+        // must not traverse content under the open detail, exactly as it
+        // wouldn't under a pushed route.
         Positioned.fill(
-          child: widget.listBuilder(context, selectedId, _handleSelect),
+          child: ExcludeSemantics(
+            excluding: showDetail,
+            child: widget.listBuilder(context, selectedId, _handleSelect),
+          ),
         ),
         // Detail — slides over list, stays during dismiss animation
         if (showDetail) Positioned.fill(child: buildSlidingDetail()),
@@ -141,8 +147,14 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
         return ValueListenableBuilder<bool>(
           valueListenable: _paintVisibility.notifier,
           builder: (_, visible, _) {
-            if (!visible) return const SizedBox.shrink();
-            return buildSlidingDetail();
+            if (!visible || _visibleDetailId == null) {
+              return const SizedBox.shrink();
+            }
+            // The overlay covers the whole page — remove everything under
+            // it from the semantics tree, same primitive Drawer and
+            // ModalBarrier use. Guarded above: an ever-present blocker
+            // would silence the page with no detail open.
+            return BlockSemantics(child: buildSlidingDetail());
           },
         );
       },
@@ -217,17 +229,37 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
       onHorizontalDragEnd: _handleCompactDragEnd,
       child: SlideTransition(
         position: _slideAnimation,
-        child: ColoredBox(
-          color:
-              widget.compactConfig.detailBackground ??
-              Theme.of(context).colorScheme.surface,
-          child: KeyedSubtree(
-            key: _detailKey,
-            child: widget.detailBuilder(
-              context,
-              detailId,
-              DetailLayoutMode.stacked,
-              _handleDismiss,
+        // Route parity for assistive tech and keyboards: the open detail
+        // reads as a route boundary to screen readers, and DismissIntent
+        // (Escape, via WidgetsApp's default shortcuts) dismisses when the
+        // focus sits inside the detail — the same courtesy ModalRoute
+        // extends. Intents bubble from the focused node, so no focus is
+        // stolen on open.
+        child: Semantics(
+          scopesRoute: true,
+          explicitChildNodes: true,
+          child: Actions(
+            actions: {
+              DismissIntent: CallbackAction<DismissIntent>(
+                onInvoke: (_) {
+                  _handleDismiss();
+                  return null;
+                },
+              ),
+            },
+            child: ColoredBox(
+              color:
+                  widget.compactConfig.detailBackground ??
+                  Theme.of(context).colorScheme.surface,
+              child: KeyedSubtree(
+                key: _detailKey,
+                child: widget.detailBuilder(
+                  context,
+                  detailId,
+                  DetailLayoutMode.stacked,
+                  _handleDismiss,
+                ),
+              ),
             ),
           ),
         ),
