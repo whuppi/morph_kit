@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:adaptive_layouts/src/core/shared/expanded_entry_style.dart';
 import 'package:adaptive_layouts/src/core/shared/pane_anchor.dart';
 import 'package:adaptive_layouts/src/core/shared/pane_resize_mode.dart';
+import 'package:adaptive_layouts/src/core/shared/pane_width_memory.dart';
 
 /// Expanded-layout pane configuration for `ListDetailLayout`.
 ///
@@ -27,6 +28,7 @@ class PaneConfig {
     this.initialAnchorIndex = 1,
     this.resizeMode = PaneResizeMode.ratio,
     this.entryStyle = ExpandedEntryStyle.reveal,
+    this.widthMemory = PaneWidthMemory.persist,
   });
 
   /// Default width of the list pane in logical pixels.
@@ -56,6 +58,9 @@ class PaneConfig {
   /// expanded layout with an open detail.
   final ExpandedEntryStyle entryStyle;
 
+  /// Whether a dragged divider position survives compact spells.
+  final PaneWidthMemory widthMemory;
+
   /// Sensible defaults for a standard list-detail layout.
   static const standard = PaneConfig();
 
@@ -75,7 +80,8 @@ class PaneConfig {
           listEquals(other.anchors, anchors) &&
           other.initialAnchorIndex == initialAnchorIndex &&
           other.resizeMode == resizeMode &&
-          other.entryStyle == entryStyle;
+          other.entryStyle == entryStyle &&
+          other.widthMemory == widthMemory;
 
   @override
   int get hashCode => Object.hash(
@@ -86,5 +92,6 @@ class PaneConfig {
     initialAnchorIndex,
     resizeMode,
     entryStyle,
+    widthMemory,
   );
 }

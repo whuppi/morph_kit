@@ -152,6 +152,33 @@ void main() {
       },
     );
 
+    testWidgets('widthMemory.resetOnReentry forgets the drag on re-entry', (
+      tester,
+    ) async {
+      await pumpApp(
+        tester,
+        buildLayout(
+          paneConfig: const PaneConfig(
+            widthMemory: PaneWidthMemory.resetOnReentry,
+          ),
+        ),
+        size: expanded,
+      );
+      final before = tester.getSize(find.byKey(const Key('list'))).width;
+      await tester.dragFrom(Offset(before, 400), const Offset(-100, 0));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getSize(find.byKey(const Key('list'))).width,
+        isNot(before),
+      );
+
+      await resizeWindow(tester, compact);
+      await resizeWindow(tester, expanded);
+
+      // Fresh divider: back to the default width, drag forgotten.
+      expect(tester.getSize(find.byKey(const Key('list'))).width, before);
+    });
+
     testWidgets('divider settles to the nearest anchor after a drag', (
       tester,
     ) async {

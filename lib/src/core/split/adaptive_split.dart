@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:adaptive_layouts/src/core/shared/adaptive_layout_config.dart';
 import 'package:adaptive_layouts/src/core/shared/divider_builder.dart';
 import 'package:adaptive_layouts/src/core/shared/pane_config.dart';
+import 'package:adaptive_layouts/src/core/shared/pane_width_memory.dart';
 import 'package:adaptive_layouts/src/core/shared/pane_width_model.dart';
 
 // =============================================================================
@@ -162,6 +163,11 @@ class _AdaptiveSplitState extends State<AdaptiveSplit>
     );
   }
 
+  /// Crossing bookkeeping for [PaneWidthMemory.resetOnReentry]. A first
+  /// build is never a crossing.
+  bool _wasExpandedLastBuild = false;
+  bool _hasBuiltOnce = false;
+
   @override
   void didUpdateWidget(AdaptiveSplit oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -255,6 +261,20 @@ class _AdaptiveSplitState extends State<AdaptiveSplit>
           widget.expandedBreakpoint,
         );
         final isExpanded = constraints.maxWidth >= breakpoint;
+        if (_hasBuiltOnce &&
+            !_wasExpandedLastBuild &&
+            isExpanded &&
+            widget.paneConfig.widthMemory == PaneWidthMemory.resetOnReentry) {
+          // Fresh divider on every re-entry — the opt-out from the
+          // default persistent memory.
+          _settleController.stop();
+          _paneWidth = PaneWidthModel(
+            widget.paneConfig,
+            referenceWidth: _referenceWidth,
+          );
+        }
+        _wasExpandedLastBuild = isExpanded;
+        _hasBuiltOnce = true;
 
         return isExpanded
             ? _buildExpandedLayout(constraints)

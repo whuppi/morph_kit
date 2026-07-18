@@ -29,7 +29,7 @@ while an active row is not `DONE` or `WONT_DO`. Statuses: `DONE` ·
 | A11y route parity for inline/overlay details | DONE | Open detail scopes as a route; covered content leaves the semantics tree (`ExcludeSemantics` / `BlockSemantics`); `DismissIntent` (Escape) dismisses with focus inside |
 | Breakpoint-crossing motion (both directions) | DONE | Into compact: detail grows out of its pane (inline/overlay) or the route's real entrance plays. Into expanded: the list slides in beside the full-width detail. Pane geometry still tracks drags without motion |
 | Expand-entry list style (reveal / resize) | DONE | `PaneConfig.entryStyle`: reveal (default — final-width, clipped, no reflow) or resize (lays out live, grows into the pane) |
-| Divider position memory | DONE | Survives compact spells + rebuilds; `PaneConfig`/`PaneAnchor` value equality (incl. NaN-sentinel anchors) — inline-constructed configs never reset the model |
+| Divider position memory | DONE | Survives compact spells + rebuilds; `PaneConfig`/`PaneAnchor` value equality (incl. NaN-sentinel anchors) — inline-constructed configs never reset the model. `PaneWidthMemory.resetOnReentry` opts into a fresh divider per expanded spell (ListDetailLayout + AdaptiveSplit) |
 | Deep-link-friendly controller semantics | DONE | Initial selection renders without animation; example ships URL sync |
 
 ## AdaptiveSplit

@@ -12,6 +12,7 @@ import 'package:adaptive_layouts/src/core/shared/adaptive_layout_config.dart';
 import 'package:adaptive_layouts/src/core/shared/divider_builder.dart';
 import 'package:adaptive_layouts/src/core/shared/expanded_entry_style.dart';
 import 'package:adaptive_layouts/src/core/shared/pane_config.dart';
+import 'package:adaptive_layouts/src/core/shared/pane_width_memory.dart';
 import 'package:adaptive_layouts/src/core/shared/pane_width_model.dart';
 
 part 'list_detail_layout_builders.dart';
@@ -855,6 +856,59 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
   }
 
   // ===========================================================================
+  // BREAKPOINT CROSSINGS
+  // ===========================================================================
+
+  /// Detects a breakpoint-crossing frame against the previous build.
+  /// A first build is never a crossing — deep links render settled.
+  ({bool intoCompact, bool intoExpanded}) _detectCrossing(bool isExpanded) {
+    final intoCompact = _hasBuiltOnce && _wasExpandedLastBuild && !isExpanded;
+    final intoExpanded = _hasBuiltOnce && !_wasExpandedLastBuild && isExpanded;
+    _wasExpandedLastBuild = isExpanded;
+    _hasBuiltOnce = true;
+    return (intoCompact: intoCompact, intoExpanded: intoExpanded);
+  }
+
+  /// Crossing-frame side effects: the arrangement-flip motion and the
+  /// width-memory policy. Pane geometry tracks a window drag with no
+  /// motion; the arrangement flip always animates — the Compose-canonical
+  /// pane motion.
+  void _handleCrossing(
+    ({bool intoCompact, bool intoExpanded}) crossing,
+    double width,
+  ) {
+    if (crossing.intoCompact && !_useRoute && _controller.hasSelection) {
+      // The detail GROWS out of its pane: the slide starts with its
+      // leading edge at the old divider position and settles to full
+      // width. (Route mode's equivalent is the real route entrance —
+      // see the route branch in build.)
+      final listWidth = _paneWidth.width(_lastExpandedWidth);
+      _slideController.value = (1 - listWidth / width).clamp(0.0, 1.0);
+      unawaited(_slideController.forward());
+    }
+
+    if (crossing.intoExpanded) {
+      if (widget.paneConfig.widthMemory == PaneWidthMemory.resetOnReentry) {
+        // Fresh divider on every re-entry — the opt-out from the default
+        // persistent memory. Reset BEFORE the entry animation reads the
+        // model, so the list arrives at its default width.
+        _settleController.stop();
+        _paneWidth = PaneWidthModel(
+          widget.paneConfig,
+          referenceWidth: _referenceWidth,
+        );
+      }
+      if (_controller.hasSelection) {
+        // The detail starts full width — matching what compact just
+        // showed, route or slide-over alike — and the list slides in,
+        // pushing it into its pane.
+        _expandEntryController.value = 0.0;
+        unawaited(_expandEntryController.forward());
+      }
+    }
+  }
+
+  // ===========================================================================
   // BUILD
   // ===========================================================================
 
@@ -869,38 +923,12 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
         final isExpanded = constraints.maxWidth >= breakpoint;
         _isExpanded = isExpanded;
 
-        final crossedIntoCompact =
-            _hasBuiltOnce && _wasExpandedLastBuild && !isExpanded;
-        final crossedIntoExpanded =
-            _hasBuiltOnce && !_wasExpandedLastBuild && isExpanded;
-        _wasExpandedLastBuild = isExpanded;
-        _hasBuiltOnce = true;
+        final crossing = _detectCrossing(isExpanded);
 
         // Evaluate overlay visibility (immediate hide for inactive tabs).
         if (_useOverlay) _paintVisibility.evaluate();
 
-        // Crossing into compact with an open detail (inline/overlay): the
-        // detail GROWS out of its pane — the slide starts with its leading
-        // edge at the old divider position and settles to full width. The
-        // window itself keeps tracking the hand; only the pane
-        // re-arrangement animates (the Compose-canonical pane motion).
-        if (!_useRoute && crossedIntoCompact && _controller.hasSelection) {
-          final listWidth = _paneWidth.width(_lastExpandedWidth);
-          _slideController.value = (1 - listWidth / constraints.maxWidth).clamp(
-            0.0,
-            1.0,
-          );
-          unawaited(_slideController.forward());
-        }
-
-        // Crossing into expanded with an open detail (every mode): the
-        // detail starts full width — matching what compact just showed,
-        // route or slide-over alike — and the list slides in, pushing it
-        // into its pane.
-        if (crossedIntoExpanded && _controller.hasSelection) {
-          _expandEntryController.value = 0.0;
-          unawaited(_expandEntryController.forward());
-        }
+        _handleCrossing(crossing, constraints.maxWidth);
 
         // Overlay entering compact outside a crossing frame (deep link,
         // mode flip): the detail is a settled fact — show it fully open.
@@ -937,7 +965,7 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
           if (isExpanded) {
             _bridgeDetail = false;
             _bridgeOffstage = false;
-          } else if (crossedIntoCompact && _controller.hasSelection) {
+          } else if (crossing.intoCompact && _controller.hasSelection) {
             // Resize into compact with an open detail: the bridge holds
             // the detail key until the push claims it. On a visible
             // layout the route plays its REAL entrance (the app's

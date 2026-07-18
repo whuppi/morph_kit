@@ -114,6 +114,7 @@ class PackageSettings extends ChangeNotifier {
   PaneResizeMode resizeMode = PaneResizeMode.ratio;
   bool anchorsEnabled = false;
   ExpandedEntryStyle entryStyle = ExpandedEntryStyle.reveal;
+  PaneWidthMemory widthMemory = PaneWidthMemory.persist;
   double expandedBreakpoint = 720;
   bool handleBackGesture = true;
   int slideDurationMs = 300;
@@ -134,6 +135,7 @@ class PackageSettings extends ChangeNotifier {
   PaneConfig get paneConfig => PaneConfig(
     resizeMode: resizeMode,
     entryStyle: entryStyle,
+    widthMemory: widthMemory,
     anchors: anchorsEnabled ? PaneAnchor.listDetail : const [],
   );
 
@@ -308,6 +310,14 @@ class PackageSettingsPanel extends StatelessWidget {
               value: s.entryStyle,
               name: (ExpandedEntryStyle v) => v.name,
               onChanged: (v) => s.update((s) => s.entryStyle = v),
+            ),
+            _choice(
+              context: context,
+              label: 'Divider width memory',
+              values: PaneWidthMemory.values,
+              value: s.widthMemory,
+              name: (PaneWidthMemory v) => v.name,
+              onChanged: (v) => s.update((s) => s.widthMemory = v),
             ),
             _section(context, 'Adaptive modal'),
             _toggle(

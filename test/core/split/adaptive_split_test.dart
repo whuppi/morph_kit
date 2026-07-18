@@ -47,6 +47,32 @@ void main() {
       expect(find.text('primary exp'), findsOneWidget);
     });
 
+    testWidgets('widthMemory.resetOnReentry forgets the drag on re-entry', (
+      tester,
+    ) async {
+      await pumpApp(
+        tester,
+        buildSplit(
+          paneConfig: const PaneConfig(
+            widthMemory: PaneWidthMemory.resetOnReentry,
+          ),
+        ),
+        size: expanded,
+      );
+      final before = tester.getRect(find.byKey(const Key('primary'))).width;
+      await tester.dragFrom(Offset(before, 400), const Offset(-100, 0));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getRect(find.byKey(const Key('primary'))).width,
+        isNot(before),
+      );
+
+      await resizeWindow(tester, compact);
+      await resizeWindow(tester, expanded);
+
+      expect(tester.getRect(find.byKey(const Key('primary'))).width, before);
+    });
+
     testWidgets('divider drag resizes the primary pane', (tester) async {
       await pumpApp(tester, buildSplit(), size: expanded);
       final before = tester.getRect(find.byKey(const Key('primary'))).width;

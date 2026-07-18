@@ -159,7 +159,7 @@ Breakpoint crossings animate the pane re-arrangement in every mode — fold/unfo
 
 Entering expanded, the arriving list is laid out at its final width and slides in clipped — content never reflows mid-entry, the way a desktop sidebar arrives. Prefer the list to lay out live and grow into its pane instead? `PaneConfig(entryStyle: ExpandedEntryStyle.resize)`.
 
-The divider remembers. A dragged divider position survives compact spells, window resizes, and rebuilds — `PaneConfig` compares by value, so constructing it inline in `build` never resets the width model.
+The divider remembers. A dragged divider position survives compact spells, window resizes, and rebuilds — `PaneConfig` compares by value, so constructing it inline in `build` never resets the width model. Prefer a fresh divider on every return to the wide layout instead? `PaneConfig(widthMemory: PaneWidthMemory.resetOnReentry)`.
 
 ### Sizing the panes
 
