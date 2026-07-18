@@ -197,9 +197,9 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
     final selectedId = _controller.selectedId;
     if (_bridgeDetail && !_detailRouted.value && selectedId != null) {
       // The frame between a resize into compact (or a deep-link mount) and
-      // the instant push: render the detail inline under its key so the
-      // list never flashes. The push claims the key post-frame.
-      return KeyedSubtree(
+      // the push: render the detail inline under its key so the element
+      // stays alive for the handoff. The push claims the key post-frame.
+      final keyed = KeyedSubtree(
         key: _detailKey,
         child: widget.detailBuilder(
           context,
@@ -208,6 +208,19 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
           _handleDismiss,
         ),
       );
+      if (_bridgeOffstage) {
+        // Discrete crossing: the route's real entrance animates over the
+        // LIST — the bridge only keeps the element alive, invisibly.
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: widget.listBuilder(context, selectedId, _handleSelect),
+            ),
+            Offstage(child: keyed),
+          ],
+        );
+      }
+      return keyed;
     }
     return widget.listBuilder(context, selectedId, _handleSelect);
   }

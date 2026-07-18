@@ -32,6 +32,9 @@ enum CompactDetailMode {
   ///   route, the covered list leaves the semantics tree, and
   ///   `DismissIntent` (Escape on desktop) dismisses when the focus is
   ///   inside the detail.
+  /// - Breakpoint crossings with an open detail: a discrete jump (fold,
+  ///   rotation, split-screen snap) grows the detail out of its pane to
+  ///   full width; a continuous window drag tracks the hand — no motion.
   ///
   /// Pick when the detail is part of the screen and the surrounding
   /// chrome should stay present.
@@ -55,6 +58,9 @@ enum CompactDetailMode {
   ///   (`BlockSemantics` — the Drawer/ModalBarrier primitive), and
   ///   `DismissIntent` (Escape on desktop) dismisses when the focus is
   ///   inside the detail.
+  /// - Breakpoint crossings with an open detail: a discrete jump (fold,
+  ///   rotation, split-screen snap) grows the detail out of its pane to
+  ///   full width; a continuous window drag tracks the hand — no motion.
   ///
   /// Pick for full-screen details with instant resize morphs, when the
   /// page's own snackbars/FABs are not needed while a detail is open.
@@ -79,6 +85,10 @@ enum CompactDetailMode {
   ///   reparents between the route and the expanded pane. Hidden
   ///   kept-alive tabs remove their route (selection and state kept)
   ///   and restore it instantly when shown again.
+  /// - Breakpoint crossings with an open detail: a discrete jump (fold,
+  ///   rotation, split-screen snap) plays the route's REAL entrance over
+  ///   the list; a continuous window drag pushes with zero entrance —
+  ///   tracking the hand, not animating against it.
   ///
   /// Pick when the detail should feel like native navigation and evolve
   /// with the platform's back-gesture conventions.

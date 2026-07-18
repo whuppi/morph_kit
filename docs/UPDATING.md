@@ -207,7 +207,20 @@ The machinery in `list_detail_layout.dart` holds:
    hero tags anywhere under the shell assert and wreck the transition.
    App-side rule (documented in the README): give FABs explicit
    `heroTag`s (or `null`) when several coexist under one page.
-9. **`didUpdateWidget` mirrors initState's per-mode wiring.** Mode flips
+9. **Crossing motion is discrete-only, and the offstage bridge is the
+   route's handoff.** A breakpoint crossing animates only when its
+   one-frame width delta reaches `_discreteResizeDelta` (fold /
+   rotation / split-snap); continuous drags cut — animating against an
+   active resize fights the hand. Inline/overlay reuse the slide
+   controller (start at the old divider fraction, settle to full).
+   Route mode drops `instantEntrance` and lets the REAL entrance play
+   over the LIST — the bridge goes `Offstage` for the handoff frame:
+   still the detail key's holder (a keyless frame unmounts the element)
+   but invisible, so the entrance never slides over a copy of itself.
+   Hidden layouts (paint-probe false) always take the instant path — an
+   entrance nobody watches is wasted, and the re-show contract expects
+   instant.
+10. **`didUpdateWidget` mirrors initState's per-mode wiring.** Mode flips
    happen on LIVE layouts (settings screens exist). Entering route mode
    must attach the paint-probe listener — it IS the re-show chain; a
    layout flipped into route mode without it looks fine until a tab
