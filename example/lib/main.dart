@@ -1170,17 +1170,24 @@ class _ListDetailRouterState extends State<ListDetailRouter> {
   @override
   Widget build(BuildContext context) {
     // Layout configuration comes from the live package settings (⚙ in the
-    // status strip) so every mode and knob is testable at runtime.
-    final settings = PackageSettings.instance;
-    return ListDetailLayout<String>(
-      controller: _controller,
-      listBuilder: widget.listBuilder,
-      detailBuilder: widget.detailBuilder,
-      emptyStateBuilder: widget.emptyStateBuilder,
-      dividerBuilder: settings.dividerBuilder,
-      paneConfig: settings.paneConfig,
-      compactConfig: settings.compactConfig,
-      compactDetailMode: settings.compactDetailMode,
+    // status strip). The ListenableBuilder is load-bearing: routed page
+    // subtrees don't rebuild from app-level rebuilds, so each layout
+    // listens to the settings itself.
+    return ListenableBuilder(
+      listenable: PackageSettings.instance,
+      builder: (context, _) {
+        final settings = PackageSettings.instance;
+        return ListDetailLayout<String>(
+          controller: _controller,
+          listBuilder: widget.listBuilder,
+          detailBuilder: widget.detailBuilder,
+          emptyStateBuilder: widget.emptyStateBuilder,
+          dividerBuilder: settings.dividerBuilder,
+          paneConfig: settings.paneConfig,
+          compactConfig: settings.compactConfig,
+          compactDetailMode: settings.compactDetailMode,
+        );
+      },
     );
   }
 }
@@ -1413,23 +1420,28 @@ class _MultiTypeListDetailRouterState extends State<MultiTypeListDetailRouter> {
         ? widget.types[_selection.activeType]
         : null;
 
-    final settings = PackageSettings.instance;
-    return ListDetailLayout<String>(
-      controller: _controller,
-      listBuilder: (context, selectedId, onSelect) {
-        return widget.listBuilder(context, _selection, _onListSelect);
+    return ListenableBuilder(
+      listenable: PackageSettings.instance,
+      builder: (context, _) {
+        final settings = PackageSettings.instance;
+        return ListDetailLayout<String>(
+          controller: _controller,
+          listBuilder: (context, selectedId, onSelect) {
+            return widget.listBuilder(context, _selection, _onListSelect);
+          },
+          detailBuilder: (context, id, mode, onDismiss) {
+            if (activeConfig != null) {
+              return activeConfig.detailBuilder(context, id, mode, onDismiss);
+            }
+            return const SizedBox.shrink();
+          },
+          emptyStateBuilder: widget.emptyStateBuilder,
+          dividerBuilder: settings.dividerBuilder,
+          paneConfig: settings.paneConfig,
+          compactConfig: settings.compactConfig,
+          compactDetailMode: settings.compactDetailMode,
+        );
       },
-      detailBuilder: (context, id, mode, onDismiss) {
-        if (activeConfig != null) {
-          return activeConfig.detailBuilder(context, id, mode, onDismiss);
-        }
-        return const SizedBox.shrink();
-      },
-      emptyStateBuilder: widget.emptyStateBuilder,
-      dividerBuilder: settings.dividerBuilder,
-      paneConfig: settings.paneConfig,
-      compactConfig: settings.compactConfig,
-      compactDetailMode: settings.compactDetailMode,
     );
   }
 }

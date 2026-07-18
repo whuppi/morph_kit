@@ -247,10 +247,19 @@ void main() {
       await tester.binding.handlePopRoute(); // close the panel
       await tester.pumpAndSettle();
 
+      final rootNavigator = tester.state<NavigatorState>(
+        find.byType(Navigator).first,
+      );
+      expect(rootNavigator.canPop(), isFalse);
+
       await tester.tap(find.text('Webhook drops events'));
       await tester.pumpAndSettle();
       expect(find.byType(TicketPane), findsOneWidget);
       expect(rootRouter(tester).currentPath, '/work/tickets/ticket-hooks');
+      // The distinguishing observable vs overlay mode: a REAL route now
+      // sits on the root navigator. (Overlay mode would pass the back
+      // assertions below via PopScope — this is what proves route-ness.)
+      expect(rootNavigator.canPop(), isTrue);
 
       // REAL system back pops the real route; the URL syncs through the
       // controller exactly as in the other modes.
