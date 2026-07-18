@@ -91,7 +91,7 @@ void main() {
 
       bool scoped = false;
       void walk(SemanticsNode node) {
-        if (node.hasFlag(SemanticsFlag.scopesRoute)) scoped = true;
+        if (node.flagsCollection.scopesRoute) scoped = true;
         node.visitChildren((child) {
           walk(child);
           return true;
