@@ -69,8 +69,19 @@ void main() {
         await tester.tap(find.byType(CounterPane));
         await tester.tap(find.byType(CounterPane));
         await tester.pump();
+        // Divider fraction before crossing (CounterPane stretches to the
+        // pane, so its left edge IS the divider).
+        final fraction = tester.getTopLeft(find.byType(CounterPane)).dx / 1000;
 
         await cross(tester);
+        // First compact frame: the detail's leading edge sits at the
+        // divider's FRACTIONAL position in the NEW width — never seeded
+        // from old pixels, which on a jump can start it off-screen.
+        final newWidth = tester.getSize(find.byType(Material).first).width;
+        expect(
+          tester.getTopLeft(find.byType(CounterPane)).dx,
+          closeTo(fraction * newWidth, 2),
+        );
         await tester.pump(const Duration(milliseconds: 40));
 
         final midMorph = tester.getTopLeft(_stacked).dx;

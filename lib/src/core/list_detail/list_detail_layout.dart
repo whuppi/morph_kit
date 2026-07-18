@@ -859,6 +859,23 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
   // BREAKPOINT CROSSINGS
   // ===========================================================================
 
+  /// Finds x with `curve.transform(x) == y` by bisection. Easing curves
+  /// are monotonic; for a non-monotonic curve this still lands on ONE
+  /// valid crossing, which is all a seed needs.
+  static double _inverseCurve(Curve curve, double y) {
+    var lo = 0.0;
+    var hi = 1.0;
+    for (var i = 0; i < 24; i++) {
+      final mid = (lo + hi) / 2;
+      if (curve.transform(mid) < y) {
+        lo = mid;
+      } else {
+        hi = mid;
+      }
+    }
+    return (lo + hi) / 2;
+  }
+
   /// Detects a breakpoint-crossing frame against the previous build.
   /// A first build is never a crossing — deep links render settled.
   ({bool intoCompact, bool intoExpanded}) _detectCrossing(bool isExpanded) {
@@ -873,17 +890,28 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
   /// width-memory policy. Pane geometry tracks a window drag with no
   /// motion; the arrangement flip always animates — the Compose-canonical
   /// pane motion.
-  void _handleCrossing(
-    ({bool intoCompact, bool intoExpanded}) crossing,
-    double width,
-  ) {
+  void _handleCrossing(({bool intoCompact, bool intoExpanded}) crossing) {
     if (crossing.intoCompact && !_useRoute && _controller.hasSelection) {
       // The detail GROWS out of its pane: the slide starts with its
-      // leading edge at the old divider position and settles to full
-      // width. (Route mode's equivalent is the real route entrance —
-      // see the route branch in build.)
-      final listWidth = _paneWidth.width(_lastExpandedWidth);
-      _slideController.value = (1 - listWidth / width).clamp(0.0, 1.0);
+      // leading edge at the divider's FRACTIONAL position and settles to
+      // full width. The fraction, not the old pixel position — when the
+      // window itself jumped narrower, the old pixels can lie beyond the
+      // new width entirely and the detail would vanish and slide in from
+      // off-screen instead of growing from the divider. (Route mode's
+      // equivalent is the real route entrance — see the route branch in
+      // build.)
+      final dividerFraction =
+          (_paneWidth.width(_lastExpandedWidth) / _lastExpandedWidth).clamp(
+            0.0,
+            1.0,
+          );
+      // The controller value passes through the easing curve before it
+      // becomes an offset — seed with the curve's inverse so the FIRST
+      // painted frame puts the leading edge exactly on the divider.
+      _slideController.value = _inverseCurve(
+        widget.compactConfig.curve,
+        1.0 - dividerFraction,
+      );
       unawaited(_slideController.forward());
     }
 
@@ -928,7 +956,7 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
         // Evaluate overlay visibility (immediate hide for inactive tabs).
         if (_useOverlay) _paintVisibility.evaluate();
 
-        _handleCrossing(crossing, constraints.maxWidth);
+        _handleCrossing(crossing);
 
         // Overlay entering compact outside a crossing frame (deep link,
         // mode flip): the detail is a settled fact — show it fully open.
