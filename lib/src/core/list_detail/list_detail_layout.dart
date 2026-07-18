@@ -519,12 +519,20 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
       _routeSyncScheduled = false;
       if (mounted) _syncDetailRoute();
     });
+    // The paint-probe listener fires inside another frame's post-frame
+    // flush; post-frame callbacks don't schedule frames, so without this
+    // the sync waits for a frame that may never come on an idle device.
+    WidgetsBinding.instance.ensureVisualUpdate();
   }
 
   /// Reconciles the pushed route with the desired state — the ONLY place
   /// route-mode navigation happens, always post-frame, never during build.
   void _syncDetailRoute() {
-    final painted = _paintVisibility.notifier.value;
+    // paintedThisFrame covers the frame where paint just resumed: the
+    // notifier only flips true a deferred callback later, and waiting for
+    // it costs extra frames of the inline bridge on screen.
+    final painted =
+        _paintVisibility.notifier.value || _paintVisibility.paintedThisFrame;
     final wantRoute = !_isExpanded && _controller.hasSelection && painted;
     final route = _detailRoute;
 

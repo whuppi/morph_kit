@@ -180,6 +180,15 @@ The machinery in `list_detail_layout.dart` holds:
    after a frame whose build armed it — clean idle frames (where paint
    legitimately skips undirtied layers) can never false-trigger. The
    check never resets the flag; `evaluate` owns the reset.
+7. **The re-show chain schedules its own frame and trusts same-frame
+   paint.** `_scheduleRouteSync` calls `ensureVisualUpdate()` — the
+   paint-probe listener fires inside another frame's post-frame flush,
+   where a queued callback waits for a frame nothing else schedules; an
+   idle device stalls forever showing the inline bridge. And the sync
+   reads `notifier.value || paintedThisFrame`: the notifier flips true
+   one deferred callback late, so the flag is what lets the route push
+   in the very flush where paint resumed (repro: resize to compact while
+   the tab is hidden, then return to the tab).
 
 ## §5 — Adding a component (divider / empty state)
 

@@ -198,6 +198,54 @@ void main() {
     expect(_navigator(tester).canPop(), isFalse); // it was a single route
   });
 
+  testWidgets('resize to compact while hidden: return pushes the route', (
+    tester,
+  ) async {
+    final controller = ListDetailController<String>();
+    final tab = ValueNotifier<int>(0);
+    addTearDown(tab.dispose);
+    await pumpApp(
+      tester,
+      ValueListenableBuilder<int>(
+        valueListenable: tab,
+        builder: (context, index, _) => IndexedStack(
+          index: index,
+          children: [
+            _layout(controller: controller),
+            const Material(child: Center(child: Text('other tab'))),
+          ],
+        ),
+      ),
+      size: const Size(1000, 800),
+    );
+    await tester.tap(find.text('item-a'));
+    await tester.pumpAndSettle();
+    expect(find.text('detail-a (sideBySide)'), findsOneWidget);
+    await tester.tap(find.byType(CounterPane));
+    await tester.tap(find.byType(CounterPane));
+    await tester.pump();
+
+    tab.value = 1;
+    await tester.pumpAndSettle();
+
+    // The breakpoint crossing happens while the tab is hidden.
+    await resizeWindow(tester, const Size(500, 800));
+    expect(_navigator(tester).canPop(), isFalse); // never over the other tab
+    expect(find.text('other tab'), findsOneWidget);
+
+    tab.value = 0;
+    // ONE frame: the repaint's post-frame flush must push the route right
+    // there (paintedThisFrame), not frames later via the deferred notifier
+    // — on an idle device those later frames never come.
+    await tester.pump();
+    expect(_navigator(tester).canPop(), isTrue); // routed, not inline
+
+    await tester.pump();
+    expect(find.text('detail-a (stacked)'), findsOneWidget);
+    expect(find.text('count: 2'), findsOneWidget); // state survived the trip
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('hidden tab removes its route, keeps selection, re-shows', (
     tester,
   ) async {
