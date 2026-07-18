@@ -253,6 +253,52 @@ void main() {
     expect(tester.getRect(find.byType(CounterPane)).width, 500);
   });
 
+  testWidgets('content shrinks with the container on sheet → dialog', (
+    tester,
+  ) async {
+    await pumpApp(tester, _opener(), size: const Size(500, 800));
+    await _open(tester);
+    expect(tester.getRect(find.byType(CounterPane)).width, 500);
+
+    tester.view.physicalSize = const Size(1000, 800);
+    await tester.pump();
+    await tester.pump();
+    // Let the natural-width sample + placeholder handshake propagate as
+    // continuous frames would on a device...
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await tester.pump(const Duration(milliseconds: 90));
+
+    // Mid-flight the content is laid tight at the container's lerped
+    // width — narrowing gradually from the sheet's last width (640: the
+    // M3 sheet max at the grown window) toward the dialog's 300. Jumping
+    // straight to 300 at takeoff is the bug this pins.
+    final midWidth = tester.getRect(find.byType(CounterPane)).width;
+    expect(midWidth, lessThan(640));
+    expect(midWidth, greaterThan(300));
+
+    await tester.pumpAndSettle();
+    expect(tester.getRect(find.byType(CounterPane)).width, 300);
+  });
+
+  testWidgets('backgroundColor knob colors both forms', (tester) async {
+    const knob = Color(0xFF123456);
+    await pumpApp(
+      tester,
+      _opener(config: const ModalConfig(backgroundColor: knob)),
+      size: const Size(1000, 800),
+    );
+    await _open(tester);
+    expect(tester.widget<Dialog>(find.byType(Dialog)).backgroundColor, knob);
+
+    await resizeWindow(tester, const Size(500, 800));
+    expect(
+      tester.widget<BottomSheet>(find.byType(BottomSheet)).backgroundColor,
+      knob,
+    );
+  });
+
   testWidgets('the flight paints exactly like the chrome it becomes', (
     tester,
   ) async {

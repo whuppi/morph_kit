@@ -18,6 +18,7 @@ import 'package:flutter/widgets.dart';
 class ModalConfig {
   /// Creates a modal configuration.
   const ModalConfig({
+    this.backgroundColor,
     this.barrierDismissible = true,
     this.barrierColor,
     this.useSafeArea = true,
@@ -28,6 +29,14 @@ class ModalConfig {
     this.morphDuration = const Duration(milliseconds: 350),
     this.morphCurve = Curves.easeInOutCubicEmphasized,
   });
+
+  /// Surface color for BOTH forms, overriding each form's theme
+  /// resolution — Material's defaults give dialogs and sheets different
+  /// surface tones (`surfaceContainerHigh` vs `surfaceContainerLow`);
+  /// set this when the modal should keep one color across the morph.
+  /// `null` keeps each form's own themed color (the flight crossfades
+  /// between them).
+  final Color? backgroundColor;
 
   /// Whether tapping the barrier dismisses the modal. Both forms.
   final bool barrierDismissible;

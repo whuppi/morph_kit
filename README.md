@@ -194,7 +194,7 @@ final choice = await showAdaptiveModal<String>(
 );
 ```
 
-The returned future completes with the pop result no matter how many form swaps happened while the modal was open. One contract: return the same root widget type for both modes (like the `SizedBox` above) — the content moves between the two routes under a stable key, and a changed root type would defeat the move.
+The returned future completes with the pop result no matter how many form swaps happened while the modal was open. Each form keeps its own Material surface tone (`surfaceContainerHigh` for dialogs, `surfaceContainerLow` for sheets, themable as usual); `ModalConfig(backgroundColor: ...)` pins one color across both forms when the crossfade is unwanted. One contract: return the same root widget type for both modes (like the `SizedBox` above) — the content moves between the two routes under a stable key, and a changed root type would defeat the move.
 
 ### One breakpoint for the whole app
 

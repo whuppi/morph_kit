@@ -20,7 +20,11 @@ class ModalFormVisuals {
 
   /// Resolves the visuals for [mode] from [theme], mirroring the Material
   /// defaults `Dialog` and `BottomSheet` use when the theme sets nothing.
-  factory ModalFormVisuals.of(ThemeData theme, ModalLayoutMode mode) {
+  factory ModalFormVisuals.of(
+    ThemeData theme,
+    ModalLayoutMode mode, {
+    Color? backgroundColor,
+  }) {
     switch (mode) {
       case ModalLayoutMode.dialog:
         return ModalFormVisuals(
@@ -28,6 +32,7 @@ class ModalFormVisuals {
               theme.dialogTheme.shape ??
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
           color:
+              backgroundColor ??
               theme.dialogTheme.backgroundColor ??
               theme.colorScheme.surfaceContainerHigh,
           elevation: theme.dialogTheme.elevation ?? 6,
@@ -41,6 +46,7 @@ class ModalFormVisuals {
                 borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
               ),
           color:
+              backgroundColor ??
               theme.bottomSheetTheme.modalBackgroundColor ??
               theme.bottomSheetTheme.backgroundColor ??
               theme.colorScheme.surfaceContainerLow,
@@ -162,6 +168,28 @@ class ModalMorphFlight {
   /// behind layout. The destination placeholder mirrors it.
   final ValueNotifier<Size> contentSize;
 
+  /// The content's natural width, sampled ONCE from the first flight
+  /// layout (laid loose): a content narrower than its container decides
+  /// its own width; one that fills the container is full-bleed. After the
+  /// sample the content is laid TIGHT at the container's lerped width so
+  /// it reflows with the morph — the frozen sample (not the live, now
+  /// container-driven measure) feeds the placeholder's width, which is
+  /// what breaks the width feedback circle.
+  double? get naturalWidth => _naturalWidth;
+  double? _naturalWidth;
+
+  /// Whether the sampled content fills whatever width it is given.
+  bool get isFullBleed => _isFullBleed;
+  bool _isFullBleed = false;
+  bool _widthSampled = false;
+
+  void _recordSample(Size size, double containerWidth) {
+    if (_widthSampled) return;
+    _widthSampled = true;
+    _isFullBleed = size.width >= containerWidth - 0.5;
+    _naturalWidth = size.width;
+  }
+
   late final AnimationController _controller;
   Rect _startRect;
   ModalFormVisuals _start;
@@ -278,12 +306,17 @@ class ModalMorphFlight {
                         padding: EdgeInsets.only(top: inset),
                         child: OverflowBox(
                           alignment: Alignment.topCenter,
-                          minWidth: 0,
+                          // First layout is loose to sample the content's
+                          // natural width; then tight so the content
+                          // shrinks/grows WITH the container instead of
+                          // jumping to its destination width at takeoff.
+                          minWidth: _widthSampled ? rect.width : 0,
                           maxWidth: rect.width,
                           minHeight: 0,
                           maxHeight: maxHeight,
                           child: _MeasureSize(
                             onSize: (size) {
+                              _recordSample(size, rect.width);
                               if (contentSize.value != size) {
                                 contentSize.value = size;
                               }

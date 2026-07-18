@@ -193,7 +193,11 @@ class _ModalSession<T> {
     final overlay = navigator.overlay;
     if (overlay == null) return false;
     final theme = Theme.of(navigator.context);
-    final end = ModalFormVisuals.of(theme, target);
+    final end = ModalFormVisuals.of(
+      theme,
+      target,
+      backgroundColor: config.backgroundColor,
+    );
 
     final flight = _flight;
     if (flight != null) {
@@ -217,7 +221,11 @@ class _ModalSession<T> {
     _flight = ModalMorphFlight(
       overlay: overlay,
       startRect: startRect,
-      start: ModalFormVisuals.of(theme, outgoingMode),
+      start: ModalFormVisuals.of(
+        theme,
+        outgoingMode,
+        backgroundColor: config.backgroundColor,
+      ),
       end: end,
       duration: config.morphDuration,
       curve: config.morphCurve,
@@ -311,7 +319,7 @@ class _ModalSession<T> {
           isDismissible: config.barrierDismissible,
           enableDrag: ghost ? false : config.enableDrag,
           showDragHandle: ghost ? false : config.showDragHandle,
-          backgroundColor: ghost ? Colors.transparent : null,
+          backgroundColor: ghost ? Colors.transparent : config.backgroundColor,
           elevation: ghost ? 0 : null,
           clipBehavior: Clip.antiAlias,
           settings: settings,
@@ -355,13 +363,28 @@ class _ModalScope<T> extends StatelessWidget {
           final inset = session._contentInsetFor(mode, Theme.of(context));
           final placeholder = ValueListenableBuilder<Size>(
             valueListenable: flight.contentSize,
-            builder: (context, size, _) => mode == ModalLayoutMode.sheet
-                ? SizedBox(
-                    key: flight.placeholderKey,
-                    width: double.infinity,
-                    height: size.height,
-                  )
-                : SizedBox.fromSize(key: flight.placeholderKey, size: size),
+            builder: (context, size, _) {
+              // Width comes from the flight's one-time natural-width
+              // sample: self-sized content keeps its own width in either
+              // form; full-bleed content takes the slot's width. The live
+              // measure only supplies the height (the width is container-
+              // driven mid-flight — feeding it back here would be
+              // circular).
+              final natural = flight.naturalWidth;
+              final double width;
+              if (natural == null) {
+                width = mode == ModalLayoutMode.sheet
+                    ? double.infinity
+                    : size.width;
+              } else {
+                width = flight.isFullBleed ? double.infinity : natural;
+              }
+              return SizedBox(
+                key: flight.placeholderKey,
+                width: width,
+                height: size.height,
+              );
+            },
           );
           content = inset == 0
               ? placeholder
@@ -400,6 +423,7 @@ class _ModalScope<T> extends StatelessWidget {
               )
             : Dialog(
                 key: const ValueKey('real'),
+                backgroundColor: session.config.backgroundColor,
                 clipBehavior: Clip.antiAlias,
                 child: content,
               );

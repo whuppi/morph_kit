@@ -108,11 +108,11 @@ same-frame swap restores the real chrome exactly under the flight's
 identical final frame. The ghost lays out a same-size placeholder (plus a
 `kMinInteractiveDimension` spacer standing in for the drag-handle band)
 whose LIVE rect is the flight's landing target, tracked every frame. The
-content is laid out at the container's lerped width so it reflows with the
-morph; the placeholder's width follows each form's convention (slot-decided
-for full-bleed sheets, content-decided for dialogs) and only the height
-flows from the flight's measurement — so the target is the true final
-geometry and the handoff is pixel-clean. Both resting forms clip (`Clip.antiAlias`)
+content is laid out TIGHT at the container's lerped width so it reflows
+with the morph; the placeholder's width is the flight's one-time
+natural-width sample (slot-decided for full-bleed content, self-decided
+otherwise) and only the height flows from the live measurement — so the
+target is the true final geometry and the handoff is pixel-clean. Both resting forms clip (`Clip.antiAlias`)
 to match the flight's clipped surface. Dismissal mid-flight lands the content
 into the exiting route immediately; a second breakpoint crossing retargets
 the flight from its current visual state. `ModalConfig(morph: false)`

@@ -101,21 +101,21 @@ With the container transform (`ModalConfig.morph`, default on), three more:
    shows the content during its exit animation and the flight's ticker is
    disposed. Completing the result while a flight is airborne leaks the
    ticker and pops an empty route.
-7. **Content lays at the container's lerped width; placeholder width is
-   per-form convention.** The content reflows WITH the morph — laying it
-   at the destination width makes the narrower container visibly crop it
-   mid-flight. The width circularity that reflow would otherwise cause
+7. **Content lays TIGHT at the container's lerped width; the placeholder's
+   width comes from the one-time natural-width sample.** Tight layout is
+   what makes the content shrink and grow WITH the morph — loose layout
+   lets self-sized content jump to its destination width at takeoff, and
+   destination-width layout makes the narrower container visibly crop it.
+   The width circularity that tight-following would otherwise cause
    (placeholder width from content width from container width) is broken
-   by convention instead of measurement: the ghost sheet's placeholder is
-   `width: double.infinity` (sheets are full-bleed; the slot decides),
-   the dialog's placeholder takes the content's measured width (dialogs
-   wrap their content). Only the HEIGHT flows from the flight's
-   measurement. Content that defies its form's convention (fixed-width
-   sheet content, full-bleed dialog content) lands with a width settle —
-   accepted trade. Related: both resting forms pass `Clip.antiAlias` so
-   corner rendering matches the flight's clipped surface; reverting to
-   Material's default `Clip.none` makes content near the corners pop
-   square at handoff.
+   by sampling: the FIRST flight layout is loose, recording the content's
+   natural width and whether it is full-bleed; every later layout is
+   tight, and the placeholder's width is the frozen sample (full-bleed →
+   the slot decides via `double.infinity`; self-sized → the sampled
+   width). Only the HEIGHT flows from the live measurement. Related: both
+   resting forms pass `Clip.antiAlias` so corner rendering matches the
+   flight's clipped surface; reverting to Material's default `Clip.none`
+   makes content near the corners pop square at handoff.
 8. **The destination stays a ghost until the flight becomes it.** During a
    morph the sheet is pushed chrome-less (transparent surface, no handle,
    no drag — but the REAL barrier, for scrim continuity) and the dialog
