@@ -6,6 +6,7 @@ import 'package:adaptive_layouts/src/core/list_detail/compact_config.dart';
 import 'package:adaptive_layouts/src/core/list_detail/compact_detail_overlay.dart';
 import 'package:adaptive_layouts/src/core/list_detail/detail_layout_mode.dart';
 import 'package:adaptive_layouts/src/core/list_detail/detail_page_route.dart';
+import 'package:adaptive_layouts/src/core/list_detail/expanded_empty_behavior.dart';
 import 'package:adaptive_layouts/src/core/list_detail/list_detail_controller.dart';
 import 'package:adaptive_layouts/src/core/list_detail/paint_visibility_detector.dart';
 import 'package:adaptive_layouts/src/core/shared/adaptive_layout_config.dart';
@@ -89,6 +90,7 @@ class ListDetailLayout<T> extends StatefulWidget {
     this.paneConfig = const PaneConfig(),
     this.compactConfig = const CompactConfig(),
     this.compactDetailMode = CompactDetailMode.inline,
+    this.expandedEmptyBehavior = ExpandedEmptyBehavior.placeholder,
   });
 
   /// Controller for selection state. If null, creates one internally.
@@ -145,6 +147,11 @@ class ListDetailLayout<T> extends StatefulWidget {
   /// Inline and overlay share the slide animation and swipe-to-dismiss
   /// gesture; route mode delegates both to the real route.
   final CompactDetailMode compactDetailMode;
+
+  /// What the expanded layout does with the detail slot when nothing is
+  /// selected: a persistent pane showing [emptyStateBuilder] (default),
+  /// or a full-width list that yields only when a selection opens.
+  final ExpandedEmptyBehavior expandedEmptyBehavior;
 
   @override
   State<ListDetailLayout<T>> createState() => _ListDetailLayoutState<T>();
@@ -307,6 +314,12 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
   /// pane. 0 = no list; 1 = settled expanded layout.
   late final AnimationController _expandEntryController;
 
+  /// Detail-pane presence at expanded for
+  /// [ExpandedEmptyBehavior.listOnly]: 0 = the list owns the full width,
+  /// 1 = both panes settled. Tracks the selection in every mode (cheap,
+  /// tickless when idle) so a crossing into expanded finds it correct.
+  late final AnimationController _detailPaneController;
+
   /// True between a route-mode build (which ran `evaluate()`) and the
   /// sync that consumes it. In such a frame `paintedThisFrame` is the
   /// authoritative visibility signal; the notifier can be a stale TRUE
@@ -327,13 +340,18 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
       duration: widget.compactConfig.duration,
     );
     _slideAnimation = _buildSlideAnimation();
-    // No listener: buildExpandedLayout wraps itself in an AnimatedBuilder
-    // on this controller — a setState listener would fire during build
-    // when a crossing frame seeds the value.
+    // No listeners on either: buildExpandedLayout wraps itself in an
+    // AnimatedBuilder on both — a setState listener would fire during
+    // build when a crossing frame seeds a value.
     _expandEntryController = AnimationController(
       vsync: this,
       duration: widget.compactConfig.duration,
       value: 1.0,
+    );
+    _detailPaneController = AnimationController(
+      vsync: this,
+      duration: widget.compactConfig.duration,
+      value: _controller.hasSelection ? 1.0 : 0.0,
     );
 
     _paneWidth = PaneWidthModel(
@@ -399,6 +417,11 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
     if (widget.compactConfig.duration != oldWidget.compactConfig.duration) {
       _slideController.duration = widget.compactConfig.duration;
       _expandEntryController.duration = widget.compactConfig.duration;
+      _detailPaneController.duration = widget.compactConfig.duration;
+    }
+    if (widget.expandedEmptyBehavior != oldWidget.expandedEmptyBehavior) {
+      // A live flip mid-animation would strand the pane half-open.
+      _detailPaneController.value = _controller.hasSelection ? 1.0 : 0.0;
     }
     if (widget.compactConfig.curve != oldWidget.compactConfig.curve) {
       _slideAnimation = _buildSlideAnimation();
@@ -466,6 +489,7 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
     _ownedController?.dispose();
     _slideController.dispose();
     _expandEntryController.dispose();
+    _detailPaneController.dispose();
     _settleController.dispose();
     _paintVisibility.dispose();
     super.dispose();
@@ -538,6 +562,7 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
       // === ENTERING: detail was closed, now something is selected ===
       _outgoingDetailId = null;
       unawaited(_slideController.forward());
+      unawaited(_detailPaneController.forward());
     } else if (!shouldBeOpen && isCurrentlyOpen) {
       // === EXITING: detail was open, selection cleared ===
       //
@@ -547,8 +572,14 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
       // which captured the ID before the controller cleared it.
       _outgoingDetailId ??= _lastSeenSelectedId;
       _controller.setAnimatingOut(true);
+      // Both exits ride together (compact slide-out / expanded pane
+      // retreat); the outgoing detail is released only when the slower
+      // one lands, so neither surface loses its content mid-exit.
       unawaited(
-        _slideController.reverse().then((_) {
+        Future.wait([
+          _slideController.reverse(),
+          _detailPaneController.reverse(),
+        ]).then((_) {
           if (mounted) {
             setState(() => _outgoingDetailId = null);
             _controller.setAnimatingOut(false);

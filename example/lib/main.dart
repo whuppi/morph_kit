@@ -115,6 +115,8 @@ class PackageSettings extends ChangeNotifier {
   bool anchorsEnabled = false;
   ExpandedEntryStyle entryStyle = ExpandedEntryStyle.reveal;
   PaneWidthMemory widthMemory = PaneWidthMemory.persist;
+  ExpandedEmptyBehavior emptyBehavior = ExpandedEmptyBehavior.placeholder;
+  bool autoSelectFirst = false;
   double expandedBreakpoint = 720;
   bool handleBackGesture = true;
   int slideDurationMs = 300;
@@ -318,6 +320,19 @@ class PackageSettingsPanel extends StatelessWidget {
               value: s.widthMemory,
               name: (PaneWidthMemory v) => v.name,
               onChanged: (v) => s.update((s) => s.widthMemory = v),
+            ),
+            _choice(
+              context: context,
+              label: 'Empty detail slot',
+              values: ExpandedEmptyBehavior.values,
+              value: s.emptyBehavior,
+              name: (ExpandedEmptyBehavior v) => v.name,
+              onChanged: (v) => s.update((s) => s.emptyBehavior = v),
+            ),
+            _toggle(
+              label: 'Auto-select first item (app-side recipe)',
+              value: s.autoSelectFirst,
+              onChanged: (v) => s.update((s) => s.autoSelectFirst = v),
             ),
             _section(context, 'Adaptive modal'),
             _toggle(
@@ -1058,6 +1073,12 @@ class ListDetailRouter extends StatefulWidget {
   /// When provided, auto-clears selection if the entity no longer exists.
   final bool Function(String id)? selectedIdExists;
 
+  /// First item for the auto-select school (the ⚙ toggle): when set and
+  /// the toggle is on, an empty expanded layout selects this item — the
+  /// Notes/Slack pattern, implemented app-side with the controller.
+  /// Returns null when the list is empty (nothing to select).
+  final String? Function()? firstItemId;
+
   const ListDetailRouter({
     super.key,
     this.idParamName = 'id',
@@ -1066,6 +1087,7 @@ class ListDetailRouter extends StatefulWidget {
     required this.detailBuilder,
     this.emptyStateBuilder,
     this.selectedIdExists,
+    this.firstItemId,
   });
 
   @override
@@ -1197,6 +1219,7 @@ class _ListDetailRouterState extends State<ListDetailRouter> {
       listenable: PackageSettings.instance,
       builder: (context, _) {
         final settings = PackageSettings.instance;
+        _maybeAutoSelectFirst(context, settings);
         return ListDetailLayout<String>(
           controller: _controller,
           listBuilder: widget.listBuilder,
@@ -1206,9 +1229,27 @@ class _ListDetailRouterState extends State<ListDetailRouter> {
           paneConfig: settings.paneConfig,
           compactConfig: settings.compactConfig,
           compactDetailMode: settings.compactDetailMode,
+          expandedEmptyBehavior: settings.emptyBehavior,
         );
       },
     );
+  }
+
+  /// The auto-select school, app-side: when the expanded layout would
+  /// show an empty slot, select the first item instead (Notes, Slack).
+  /// Deliberately reselects after dismiss too — that IS the pattern:
+  /// these apps never show emptiness at a wide window.
+  void _maybeAutoSelectFirst(BuildContext context, PackageSettings settings) {
+    if (!settings.autoSelectFirst || widget.firstItemId == null) return;
+    if (_controller.hasSelection) return;
+    final width = MediaQuery.sizeOf(context).width;
+    if (width < AdaptiveLayoutConfig.resolveBreakpoint(context, null)) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _controller.hasSelection) return;
+      if (!PackageSettings.instance.autoSelectFirst) return;
+      final id = widget.firstItemId!();
+      if (id != null) _controller.select(id);
+    });
   }
 }
 
@@ -2105,6 +2146,7 @@ class TicketsTabScreen extends StatelessWidget {
         return ListDetailRouter(
           idParamName: Params.ticketId,
           selectedIdExists: (id) => tickets.any((t) => t.id == id),
+          firstItemId: () => tickets.isEmpty ? null : tickets.first.id,
           listBuilder: (context, selectedId, onSelect) => DemoListPane(
             collection: store.tickets,
             selectedId: selectedId,

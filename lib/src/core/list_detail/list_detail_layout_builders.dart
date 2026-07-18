@@ -13,10 +13,13 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
   // ===========================================================================
 
   /// Expanded: side-by-side panes with draggable divider, rebuilt per
-  /// expand-entry tick without a setState listener.
+  /// animation tick without setState listeners.
   Widget buildExpandedLayout(BoxConstraints constraints) {
     return AnimatedBuilder(
-      animation: _expandEntryController,
+      animation: Listenable.merge([
+        _expandEntryController,
+        _detailPaneController,
+      ]),
       builder: (context, _) => _buildExpandedLayoutInner(constraints),
     );
   }
@@ -24,16 +27,26 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
   Widget _buildExpandedLayoutInner(BoxConstraints constraints) {
     final availableWidth = constraints.maxWidth;
     _lastExpandedWidth = availableWidth;
-    // The expand-entry animation scales the list's SLOT only — the width
-    // model is untouched, so dividers and anchors keep their real
-    // geometry the moment the entry settles.
+    // Both animations scale SLOTS only — the width model is untouched,
+    // so dividers and anchors keep their real geometry when they settle.
     final entry = _expandEntryController.isAnimating
         ? widget.compactConfig.curve.transform(_expandEntryController.value)
         : 1.0;
+    // Detail-pane presence (listOnly): 0 = list owns the full width.
+    // Placeholder behavior pins it at 1 — the pane slot always exists.
+    final listOnly =
+        widget.expandedEmptyBehavior == ExpandedEmptyBehavior.listOnly;
+    final pane = listOnly
+        ? widget.compactConfig.curve.transform(_detailPaneController.value)
+        : 1.0;
     final finalListWidth = _paneWidth.width(availableWidth);
-    final listWidth = finalListWidth * entry;
+    // One formula, three motions: pane=1 → the entry scaling; entry=1 →
+    // the pane reveal; both settled → the plain two-pane split.
+    final listWidth =
+        availableWidth - (availableWidth - finalListWidth * entry) * pane;
 
     final selectedId = _controller.selectedId;
+    final detailId = listOnly ? _visibleDetailId : selectedId;
     final dividerBuilder = widget.dividerBuilder;
 
     Widget list = widget.listBuilder(context, selectedId, _handleSelect);
@@ -56,59 +69,81 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
       );
     }
 
+    Widget detailSlot;
+    if (detailId != null) {
+      // While a route (active or exiting) holds the detail key, the
+      // pane leaves its slot empty — exactly one key holder per frame.
+      // The route still covers the screen for that frame, so the empty
+      // slot is never visible.
+      detailSlot = ValueListenableBuilder<bool>(
+        valueListenable: _detailRouted,
+        builder: (context, routed, _) => routed
+            ? const SizedBox.shrink()
+            : KeyedSubtree(
+                key: _detailKey,
+                child: widget.detailBuilder(
+                  context,
+                  detailId,
+                  DetailLayoutMode.sideBySide,
+                  _handleDismiss,
+                ),
+              ),
+      );
+      if (listOnly && pane < 1.0) {
+        // The arriving pane reveals from the end edge laid at its FINAL
+        // width, clipped — same no-reflow discipline as the expand
+        // entry. Start-aligned: a rigid sheet sliding in from the end
+        // shows its leading portion first.
+        detailSlot = ClipRect(
+          child: OverflowBox(
+            minWidth: availableWidth - finalListWidth,
+            maxWidth: availableWidth - finalListWidth,
+            alignment: AlignmentDirectional.centerStart,
+            child: detailSlot,
+          ),
+        );
+      }
+    } else if (listOnly) {
+      // Full-width list; the pane slot is zero-width and empty.
+      detailSlot = const SizedBox.shrink();
+    } else {
+      detailSlot =
+          widget.emptyStateBuilder?.call(context) ?? const SizedBox.shrink();
+    }
+
     return Stack(
       children: [
         Row(
           children: [
             SizedBox(width: listWidth, child: list),
-            Expanded(
-              // While a route (active or exiting) holds the detail key, the
-              // pane leaves its slot empty — exactly one key holder per
-              // frame. The route still covers the screen for that frame,
-              // so the empty slot is never visible.
-              child: selectedId != null
-                  ? ValueListenableBuilder<bool>(
-                      valueListenable: _detailRouted,
-                      builder: (context, routed, _) => routed
-                          ? const SizedBox.shrink()
-                          : KeyedSubtree(
-                              key: _detailKey,
-                              child: widget.detailBuilder(
-                                context,
-                                selectedId,
-                                DetailLayoutMode.sideBySide,
-                                _handleDismiss,
-                              ),
-                            ),
-                    )
-                  : widget.emptyStateBuilder?.call(context) ??
-                        const SizedBox.shrink(),
-            ),
+            Expanded(child: detailSlot),
           ],
         ),
-        // Divider — visual (if builder provided) or invisible drag zone
-        PositionedDirectional(
-          start: listWidth - 12, // 24px hit area centered on the border
-          top: 0,
-          bottom: 0,
-          child: GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onHorizontalDragStart: (_) => _handleDividerDragStart(),
-            onHorizontalDragUpdate: (d) =>
-                _handleDividerDragUpdate(d.primaryDelta ?? 0),
-            onHorizontalDragEnd: (_) => _handleDividerDragEnd(),
-            child: SizedBox(
-              width: 24,
-              child: dividerBuilder != null
-                  ? dividerBuilder(
-                      context,
-                      _isDividerDragging,
-                      _isDividerSettling,
-                    )
-                  : null,
+        // Divider — visual (if builder provided) or invisible drag zone.
+        // In listOnly the seam only exists once the pane has settled.
+        if (!listOnly || (pane == 1.0 && detailId != null))
+          PositionedDirectional(
+            start: listWidth - 12, // 24px hit area centered on the border
+            top: 0,
+            bottom: 0,
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onHorizontalDragStart: (_) => _handleDividerDragStart(),
+              onHorizontalDragUpdate: (d) =>
+                  _handleDividerDragUpdate(d.primaryDelta ?? 0),
+              onHorizontalDragEnd: (_) => _handleDividerDragEnd(),
+              child: SizedBox(
+                width: 24,
+                child: dividerBuilder != null
+                    ? dividerBuilder(
+                        context,
+                        _isDividerDragging,
+                        _isDividerSettling,
+                      )
+                    : null,
+              ),
             ),
           ),
-        ),
       ],
     );
   }

@@ -31,6 +31,7 @@ while an active row is not `DONE` or `WONT_DO`. Statuses: `DONE` ·
 | Expand-entry list style (reveal / resize) | DONE | `PaneConfig.entryStyle`: reveal (default — final-width, clipped, no reflow) or resize (lays out live, grows into the pane) |
 | Divider position memory | DONE | Survives compact spells + rebuilds; `PaneConfig`/`PaneAnchor` value equality (incl. NaN-sentinel anchors) — inline-constructed configs never reset the model. `PaneWidthMemory.resetOnReentry` opts into a fresh divider per expanded spell (ListDetailLayout + AdaptiveSplit) |
 | Deep-link-friendly controller semantics | DONE | Initial selection renders without animation; example ships URL sync |
+| Empty detail slot behaviors | DONE | `ExpandedEmptyBehavior`: placeholder (default, `emptyStateBuilder`) or listOnly (full-width list; the pane reveals from the end edge on selection, retreats on dismiss). Auto-select-first stays an app-side recipe (documented; example ⚙ toggle) |
 
 ## AdaptiveSplit
 

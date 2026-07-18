@@ -136,6 +136,23 @@ Selecting pushes a genuine page route holding the detail; back is the route's ow
 
 One app-side note: every route push makes Flutter scan the shell for `Hero` tags, kept-alive tabs included. If several `FloatingActionButton`s coexist under one page (one per tab), give them explicit `heroTag`s — the shared default tag asserts on the first push.
 
+### The empty detail pane — three schools
+
+When nothing is selected at expanded width, list-detail apps follow one of three established patterns; the package supports all three:
+
+1. **Placeholder** (default) — the pane stays reserved and shows `emptyStateBuilder` (`IconMessageEmpty` ships as a convenience). The Apple Mail / Outlook reading-pane shape.
+2. **Auto-select** — never show emptiness: when the list loads and nothing is selected, select the first (or last-used) item from your controller: `controller.select(items.first.id)`. The Notes / Slack shape. This is a data decision, so it stays app-side — the layout doesn't know your data, and auto-selecting can be wrong (empty lists, destructive contexts, deep links). The example app ships the recipe behind a ⚙ toggle.
+3. **On-demand pane** — the list owns the full width until a selection summons the pane, which reveals from the end edge; dismissing hands the width back. Material's "supporting pane" shape (Gmail without a reading pane):
+
+```dart
+ListDetailLayout<String>(
+  expandedEmptyBehavior: ExpandedEmptyBehavior.listOnly,
+  ...
+)
+```
+
+A side effect worth knowing: with `listOnly`, compact and expanded look identical when nothing is selected (a full-width list), so breakpoint crossings without a selection stop being a visible event entirely.
+
 ### Picking a compact detail mode
 
 All three modes keep the state guarantee across resizes. They differ in what the open detail covers and who owns the back gesture:
