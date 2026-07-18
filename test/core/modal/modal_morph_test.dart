@@ -348,6 +348,50 @@ void main() {
     await tester.pumpAndSettle(); // land the flight; free its ticker
   });
 
+  testWidgets('constraint-filling content survives a handled-sheet morph', (
+    tester,
+  ) async {
+    // Tall scrollable content (like a settings panel) fills whatever
+    // height the slot offers. The ghost's handle band must reduce the
+    // content's available height the way the real BottomSheet does —
+    // stacking it on top instead overflows the slot by the band height.
+    await pumpApp(
+      tester,
+      Builder(
+        builder: (context) => Center(
+          child: ElevatedButton(
+            onPressed: () => showAdaptiveModal<Object>(
+              context: context,
+              config: const ModalConfig(showDragHandle: true),
+              builder: (context, mode) => SizedBox(
+                width: mode == ModalLayoutMode.dialog ? 300 : double.infinity,
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: [for (var i = 0; i < 60; i++) Text('row $i')],
+                  ),
+                ),
+              ),
+            ),
+            child: const Text('open'),
+          ),
+        ),
+      ),
+      size: const Size(1000, 800),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    await resizeWindow(tester, const Size(500, 800));
+
+    expect(tester.takeException(), isNull);
+    expect(find.byType(BottomSheet), findsOneWidget);
+    expect(find.text('row 0'), findsOneWidget);
+
+    await resizeWindow(tester, const Size(1000, 800));
+    expect(tester.takeException(), isNull);
+    expect(find.byType(Dialog), findsOneWidget);
+  });
+
   testWidgets('the flight paints exactly like the chrome it becomes', (
     tester,
   ) async {

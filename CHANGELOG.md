@@ -68,6 +68,7 @@ First release — adaptive layout widgets that morph between phone and desktop f
 - **State preservation:** pane widget instances survive the compact ↔ expanded morph — drafts, scroll positions, and in-flight animations carry across a window resize.
 - **Adaptive modal:** `showAdaptiveModal` presents a real Material dialog on expanded widths and a real Material bottom sheet on compact — and swaps between the two real routes on resize with a container transform that carries the live content, preserving state and the awaited result.
 - **Overlay mode:** the compact detail can render in the Navigator's overlay, covering bottom navs and tab bars; inactive kept-alive tabs suppress their overlays automatically.
+- **Route mode:** `CompactDetailMode.route` hosts the compact detail in a real page route — the app's `PageTransitionsTheme` (platform transitions, predictive back, edge swipes) applies natively, and the detail element still reparents into the side-by-side pane on resize.
 - **Divider:** draggable with min/max clamps, optional anchor snap points with a settle animation, and ratio or fixed-pixel resize modes; `HandleDivider` and `MaterialDivider` ship as ready-made visuals.
 - **Controller:** `ListDetailController` with an animation-aware `isDetailVisible` for app-shell timing; router-agnostic — the example ships full URL-sync reference wiring.
 - **Platforms:** pure Flutter, no platform code — every platform.

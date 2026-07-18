@@ -60,6 +60,13 @@ class PaintVisibilityDetector {
     _wasPaintedLastFrame = false;
   }
 
+  /// Whether paint fired since the last [evaluate] reset. Route mode's
+  /// one-shot post-frame check peeks this AFTER a frame whose build ran
+  /// [evaluate]: the reset-then-paint ordering makes the flag a true
+  /// painted-this-frame signal for exactly that frame. Read-only —
+  /// [evaluate] owns the reset.
+  bool get paintedThisFrame => _wasPaintedLastFrame;
+
   /// Called by [PaintVisibilityObserver] during paint.
   ///
   /// Marks this detector as painted. If transitioning from not-painted to

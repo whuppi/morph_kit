@@ -390,14 +390,15 @@ class _ModalScope<T> extends StatelessWidget {
               );
             },
           );
+          // Padding, not a Column with a spacer: the real BottomSheet lays
+          // its content via Padding(top: band) INSIDE the bounded height,
+          // so constraint-filling content gets height − band. A stacked
+          // spacer would overflow the slot by exactly the band.
           content = inset == 0
               ? placeholder
-              : Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox(height: inset),
-                    placeholder,
-                  ],
+              : Padding(
+                  padding: EdgeInsets.only(top: inset),
+                  child: placeholder,
                 );
         } else {
           content = KeyedSubtree(

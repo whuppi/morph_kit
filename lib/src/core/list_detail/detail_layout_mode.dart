@@ -23,4 +23,16 @@ enum CompactDetailMode {
   /// detail in the widget tree (state preserved via GlobalKey).
   /// Which overlay is controlled by `CompactConfig.useRootOverlay`.
   overlay,
+
+  /// Detail is pushed as a REAL page route on the Navigator.
+  ///
+  /// Covers everything below the route (bottom nav, tab bars) and inherits
+  /// the app's `PageTransitionsTheme` — platform transitions, predictive
+  /// back, Cupertino edge swipes. Back is handled by the route itself
+  /// (`CompactConfig.handleBackGesture` and the slide/swipe machinery are
+  /// not used in this mode). Which navigator receives the route is
+  /// controlled by `CompactConfig.useRootNavigator`. State is preserved
+  /// across compact ↔ expanded resizes by reparenting the detail element
+  /// between the route and the expanded pane.
+  route,
 }

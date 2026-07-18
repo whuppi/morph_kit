@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:adaptive_layouts/src/core/list_detail/compact_config.dart';
 import 'package:adaptive_layouts/src/core/list_detail/compact_detail_overlay.dart';
 import 'package:adaptive_layouts/src/core/list_detail/detail_layout_mode.dart';
+import 'package:adaptive_layouts/src/core/list_detail/detail_page_route.dart';
 import 'package:adaptive_layouts/src/core/list_detail/list_detail_controller.dart';
 import 'package:adaptive_layouts/src/core/list_detail/paint_visibility_detector.dart';
 import 'package:adaptive_layouts/src/core/shared/adaptive_layout_config.dart';
@@ -125,6 +126,13 @@ class ListDetailLayout<T> extends StatefulWidget {
   /// [OverlayPortal] — covers sibling widgets. Which overlay is controlled
   /// by [CompactConfig.useRootOverlay]. Widget state preserved via [GlobalKey].
   ///
+  /// [CompactDetailMode.route]: detail is pushed as a REAL page route —
+  /// the app's [PageTransitionsTheme] (platform transitions, predictive
+  /// back, edge swipes) applies natively, and back is the route's own.
+  /// The same [PaintVisibilityDetector] suppression applies: an unpainted
+  /// instance (hidden tab) removes its route, keeping the selection, and
+  /// re-pushes instantly when painted again.
+  ///
   /// **Note on overlay mode with tabs:** When multiple overlay-mode instances
   /// are mounted simultaneously (e.g. tab navigation with state preservation),
   /// a [PaintVisibilityDetector] automatically suppresses inactive instances'
@@ -132,7 +140,8 @@ class ListDetailLayout<T> extends StatefulWidget {
   /// one-frame delay when switching back. Works with any parent that stops
   /// painting inactive children (IndexedStack, Offstage, Visibility, etc.).
   ///
-  /// Both modes use the same slide animation and swipe-to-dismiss gesture.
+  /// Inline and overlay share the slide animation and swipe-to-dismiss
+  /// gesture; route mode delegates both to the real route.
   final CompactDetailMode compactDetailMode;
 
   @override
@@ -242,6 +251,45 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
 
   bool get _useOverlay => widget.compactDetailMode == CompactDetailMode.overlay;
 
+  // ---------------------------------------------------------------------------
+  // Route-based compact detail (CompactDetailMode.route)
+  //
+  // The detail lives in a REAL page route. All navigation runs post-frame
+  // through one reconciler (_syncDetailRoute). The detail key has exactly
+  // one holder per frame: the route (via _detailRouted), the expanded pane,
+  // or the one-frame bridge (buildCompactRouteList).
+  // ---------------------------------------------------------------------------
+
+  bool get _useRoute => widget.compactDetailMode == CompactDetailMode.route;
+
+  /// The pushed detail route while active (not popping).
+  DetailPageRoute? _detailRoute;
+
+  /// A popped route still playing its real exit animation. Its subtree
+  /// holds the detail key until the animation is dismissed — new pushes
+  /// wait for it.
+  DetailPageRoute? _exitingRoute;
+
+  /// Captured at push time — the layout's context is unusable in dispose.
+  NavigatorState? _routeNavigator;
+
+  /// True while a route (active or exiting) owns the detail key; the
+  /// expanded pane builds an empty slot meanwhile.
+  final ValueNotifier<bool> _detailRouted = ValueNotifier<bool>(false);
+
+  /// Render the detail inline (keyed) for the frame between a resize into
+  /// compact (or a deep-link mount) and the instant route push — without
+  /// it that frame flashes the bare list.
+  bool _bridgeDetail = false;
+
+  /// Next push skips the entrance animation (resize swap, deep link,
+  /// paint re-show) — the detail was already visually present.
+  bool _instantRoutePush = false;
+
+  bool _routeSyncScheduled = false;
+  bool _wasExpandedForBridge = false;
+  bool _routePaintCheckArmed = false;
+
   // ===========================================================================
   // LIFECYCLE
   // ===========================================================================
@@ -282,6 +330,14 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
         if (mounted) _overlay.show();
       });
     }
+
+    if (_useRoute) {
+      // A mount with a selection (deep link) shows the detail from the
+      // first frame via the bridge, then hands it to an instant push.
+      _bridgeDetail = _controller.hasSelection;
+      _instantRoutePush = _controller.hasSelection;
+      _paintVisibility.notifier.addListener(_scheduleRouteSync);
+    }
   }
 
   @override
@@ -321,6 +377,11 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
         referenceWidth: _referenceWidth,
       );
     }
+
+    if (widget.compactDetailMode != oldWidget.compactDetailMode &&
+        oldWidget.compactDetailMode == CompactDetailMode.route) {
+      _teardownDetailRoute();
+    }
   }
 
   /// Reference width for ratio conversion — the expanded breakpoint, since
@@ -331,12 +392,31 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
 
   @override
   void dispose() {
+    if (_useRoute) _paintVisibility.notifier.removeListener(_scheduleRouteSync);
+    _teardownDetailRoute();
     _controller.removeListener(_onControllerChanged);
     _ownedController?.dispose();
     _slideController.dispose();
     _settleController.dispose();
     _paintVisibility.dispose();
     super.dispose();
+  }
+
+  /// Removes any live route without animation. Used on dispose and on a
+  /// compactDetailMode change away from route mode. Navigation is illegal
+  /// while the tree is locked, so the removal is deferred a frame.
+  void _teardownDetailRoute() {
+    final orphan = _detailRoute ?? _exitingRoute;
+    _detailRoute = null;
+    _exitingRoute = null;
+    _detailRouted.value = false;
+    if (orphan == null) return;
+    final navigator = _routeNavigator;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (navigator != null && navigator.mounted && orphan.isActive) {
+        navigator.removeRoute(orphan);
+      }
+    });
   }
 
   // ===========================================================================
@@ -369,6 +449,18 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
   // ===========================================================================
 
   void _onControllerChanged() {
+    if (_controller.selectedId != null) {
+      _lastSeenSelectedId = _controller.selectedId;
+    }
+
+    // Route mode (compact): selection changes translate to route pushes and
+    // pops in the reconciler — none of the slide machinery below applies.
+    if (_useRoute && !_isExpanded) {
+      _scheduleRouteSync();
+      if (mounted) setState(() {});
+      return;
+    }
+
     final shouldBeOpen = _controller.hasSelection;
     final isCurrentlyOpen =
         _slideController.value > 0 || _slideController.isAnimating;
@@ -397,13 +489,166 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
     }
     // SWITCHING (shouldBeOpen && isCurrentlyOpen with different ID):
     // No animation needed — just rebuild with the new ID.
-
-    // Track the last non-null selection for external dismiss fallback.
-    if (_controller.selectedId != null) {
-      _lastSeenSelectedId = _controller.selectedId;
-    }
+    // (_lastSeenSelectedId tracking happens at the top of this method.)
 
     if (mounted) setState(() {});
+  }
+
+  // ===========================================================================
+  // ROUTE MODE — the reconciler and its verbs
+  // ===========================================================================
+
+  void _armRoutePaintCheck() {
+    if (_routePaintCheckArmed) return;
+    _routePaintCheckArmed = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _routePaintCheckArmed = false;
+      if (!mounted || _detailRoute == null) return;
+      if (!_paintVisibility.paintedThisFrame &&
+          _paintVisibility.notifier.value) {
+        _paintVisibility.notifier.value = false;
+        _scheduleRouteSync();
+      }
+    });
+  }
+
+  void _scheduleRouteSync() {
+    if (!_useRoute || _routeSyncScheduled) return;
+    _routeSyncScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _routeSyncScheduled = false;
+      if (mounted) _syncDetailRoute();
+    });
+  }
+
+  /// Reconciles the pushed route with the desired state — the ONLY place
+  /// route-mode navigation happens, always post-frame, never during build.
+  void _syncDetailRoute() {
+    final painted = _paintVisibility.notifier.value;
+    final wantRoute = !_isExpanded && _controller.hasSelection && painted;
+    final route = _detailRoute;
+
+    if (wantRoute && route == null) {
+      if (_exitingRoute != null) {
+        // The previous detail still holds the key through its exit
+        // animation — try again next frame.
+        _scheduleRouteSync();
+        return;
+      }
+      _pushDetailRoute();
+    } else if (!wantRoute && route != null) {
+      if (!_isExpanded && !painted && _controller.hasSelection) {
+        // Tab hidden under the route (URL navigation): remove instantly,
+        // KEEP the selection, re-push instantly when painted again.
+        _instantRoutePush = true;
+        _removeDetailRoute(route);
+      } else if (_isExpanded) {
+        // Resize into expanded: the pane claims the key in the same
+        // synchronous block the route releases it.
+        _removeDetailRoute(route);
+      } else {
+        // Programmatic dismissal — real exit animation.
+        _popDetailRoute(route);
+      }
+    }
+  }
+
+  void _pushDetailRoute() {
+    final navigator = Navigator.of(
+      context,
+      rootNavigator: widget.compactConfig.useRootNavigator,
+    );
+    final route = DetailPageRoute(
+      instantEntrance: _instantRoutePush,
+      builder: _buildRoutedDetail,
+    );
+    _detailRoute = route;
+    _routeNavigator = navigator;
+    _detailRouted.value = true;
+    _bridgeDetail = false;
+    _instantRoutePush = false;
+    unawaited(
+      route.popped.then((_) {
+        if (mounted) _onDetailRoutePopped(route);
+      }),
+    );
+    unawaited(navigator.push(route));
+    // The route animation exists only after install.
+    route.animation?.addStatusListener((status) {
+      if (status != AnimationStatus.dismissed || !mounted) return;
+      if (!identical(_exitingRoute, route)) return;
+      _exitingRoute = null;
+      if (_detailRoute == null) _detailRouted.value = false;
+      _controller.setAnimatingOut(false);
+      _scheduleRouteSync();
+    });
+    if (mounted) setState(() {});
+  }
+
+  /// Handles the route being popped — by the system back gesture,
+  /// predictive back, or our own [_popDetailRoute]. Fires at pop START;
+  /// the route keeps the detail key through its exit animation.
+  void _onDetailRoutePopped(DetailPageRoute route) {
+    // Identity guard: a removed route also completes `popped` — only the
+    // still-active route's completion is a real dismissal.
+    if (!identical(route, _detailRoute)) return;
+    _detailRoute = null;
+    _exitingRoute = route;
+    _controller.setAnimatingOut(true);
+    if (_controller.hasSelection) {
+      // Externally popped — sync the data state. The route-mode branch of
+      // _onControllerChanged schedules a sync, which finds nothing to do.
+      _controller.dismiss();
+    }
+    if (mounted) setState(() {});
+  }
+
+  /// Animated dismissal of the active route.
+  void _popDetailRoute(DetailPageRoute route) {
+    final navigator = _routeNavigator;
+    if (navigator == null || !navigator.mounted) return;
+    if (route.isCurrent) {
+      navigator.pop();
+    } else if (route.isActive) {
+      // Something sits above the detail (a dialog) — remove silently.
+      _detailRoute = null;
+      _detailRouted.value = false;
+      navigator.removeRoute(route);
+    }
+  }
+
+  /// Instant removal — resize swaps, paint suppression. Releases the key
+  /// in the same synchronous block so the next holder can claim it.
+  void _removeDetailRoute(DetailPageRoute route) {
+    _detailRoute = null;
+    _detailRouted.value = false;
+    final navigator = _routeNavigator;
+    if (navigator != null && navigator.mounted && route.isActive) {
+      navigator.removeRoute(route);
+    }
+    if (mounted) setState(() {});
+  }
+
+  /// The route's content: the keyed detail, live against the controller.
+  /// During the exit animation the selection is already cleared —
+  /// [_lastSeenSelectedId] keeps the content on screen for the ride out.
+  Widget _buildRoutedDetail(BuildContext context) {
+    return ListenableBuilder(
+      listenable: _controller,
+      builder: (context, _) {
+        final id = _controller.selectedId ?? _lastSeenSelectedId;
+        if (id == null) return const SizedBox.shrink();
+        return KeyedSubtree(
+          key: _detailKey,
+          child: widget.detailBuilder(
+            context,
+            id,
+            DetailLayoutMode.stacked,
+            _handleDismiss,
+          ),
+        );
+      },
+    );
   }
 
   // ===========================================================================
@@ -557,6 +802,32 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
               detector: _paintVisibility,
               child: innerLayout,
             ),
+          );
+        }
+
+        if (_useRoute) {
+          _paintVisibility.evaluate();
+          // One-shot: after THIS frame's paint, verify the layout actually
+          // painted. A build pass that ends unpainted means the tab was
+          // hidden under the route (URL navigation) — suppress it. Armed
+          // only by build passes, so clean idle frames never false-trigger.
+          if (_detailRoute != null) _armRoutePaintCheck();
+          if (isExpanded) {
+            _bridgeDetail = false;
+          } else if (_wasExpandedForBridge && _controller.hasSelection) {
+            // Resize into compact with an open detail: bridge the frame
+            // until the instant push lands, so the list never flashes.
+            _bridgeDetail = true;
+            _instantRoutePush = true;
+          }
+          _wasExpandedForBridge = isExpanded;
+          _scheduleRouteSync();
+          final innerLayout = isExpanded
+              ? buildExpandedLayout(constraints)
+              : buildCompactRouteList();
+          return PaintVisibilityObserver(
+            detector: _paintVisibility,
+            child: innerLayout,
           );
         }
 

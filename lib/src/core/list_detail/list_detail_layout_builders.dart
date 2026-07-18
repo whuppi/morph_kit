@@ -30,15 +30,24 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
               child: widget.listBuilder(context, selectedId, _handleSelect),
             ),
             Expanded(
+              // While a route (active or exiting) holds the detail key, the
+              // pane leaves its slot empty — exactly one key holder per
+              // frame. The route still covers the screen for that frame,
+              // so the empty slot is never visible.
               child: selectedId != null
-                  ? KeyedSubtree(
-                      key: _detailKey,
-                      child: widget.detailBuilder(
-                        context,
-                        selectedId,
-                        DetailLayoutMode.sideBySide,
-                        _handleDismiss,
-                      ),
+                  ? ValueListenableBuilder<bool>(
+                      valueListenable: _detailRouted,
+                      builder: (context, routed, _) => routed
+                          ? const SizedBox.shrink()
+                          : KeyedSubtree(
+                              key: _detailKey,
+                              child: widget.detailBuilder(
+                                context,
+                                selectedId,
+                                DetailLayoutMode.sideBySide,
+                                _handleDismiss,
+                              ),
+                            ),
                     )
                   : widget.emptyStateBuilder?.call(context) ??
                         const SizedBox.shrink(),
@@ -166,7 +175,33 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
   }
 
   // ===========================================================================
-  // SHARED SLIDING DETAIL (used by both compact modes)
+  // COMPACT ROUTE LIST (CompactDetailMode.route)
+  // ===========================================================================
+
+  /// Compact layout for route mode: the list alone — the detail lives in a
+  /// real page route above. No [PopScope], no swipe machinery: the route
+  /// owns back and transitions.
+  Widget buildCompactRouteList() {
+    final selectedId = _controller.selectedId;
+    if (_bridgeDetail && !_detailRouted.value && selectedId != null) {
+      // The frame between a resize into compact (or a deep-link mount) and
+      // the instant push: render the detail inline under its key so the
+      // list never flashes. The push claims the key post-frame.
+      return KeyedSubtree(
+        key: _detailKey,
+        child: widget.detailBuilder(
+          context,
+          selectedId,
+          DetailLayoutMode.stacked,
+          _handleDismiss,
+        ),
+      );
+    }
+    return widget.listBuilder(context, selectedId, _handleSelect);
+  }
+
+  // ===========================================================================
+  // SHARED SLIDING DETAIL (used by inline and overlay compact modes)
   // ===========================================================================
 
   /// The sliding detail pane with swipe-to-dismiss gesture.

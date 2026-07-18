@@ -23,7 +23,7 @@ while an active row is not `DONE` or `WONT_DO`. Statuses: `DONE` ·
 | Inline compact mode | DONE | Default; detail stays inside the layout's bounds |
 | Overlay compact mode (covers bottom nav / tabs) | DONE | Always-showing `OverlayPortal`; nearest or root overlay |
 | Overlay suppression for inactive kept-alive tabs | DONE | Paint-visibility probe; zero-frame hide, one-frame re-show |
-| True-route compact mode (real push/pop, preserved instance) | PLANNED | Reuses the modal's route-swap primitive; restores predictive back + platform transitions; the hard part is the pop-direction handoff (predictive-back cancel) |
+| True-route compact mode (`CompactDetailMode.route`) | DONE | Real `PageRoute` with the app's `PageTransitionsTheme` (predictive back, edge swipes); atomic resize swaps reparent the detail between route and pane; paint-probe suppression for hidden tabs; the feared pop-handoff never existed — dismissal kills the detail by design, so predictive back is free |
 | Empty state builder (expanded, no selection) | DONE | Nullable; `IconMessageEmpty` shipped as a convenience |
 | RTL support | DONE | Slide, swipe, and divider drag are direction-aware |
 | Deep-link-friendly controller semantics | DONE | Initial selection renders without animation; example ships URL sync |

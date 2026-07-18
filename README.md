@@ -123,6 +123,17 @@ The detail now renders in the Navigator's overlay, sliding over everything the N
 
 Overlay mode is built for kept-alive tab navigation: when several overlay-mode layouts are mounted at once (one per tab) and only one tab is painted, the inactive tabs' overlays suppress themselves automatically — hiding is immediate, reappearing takes one frame. Works with `IndexedStack`, `Offstage`, tab routers, or any parent that stops painting inactive children.
 
+And when the compact detail should be a real page — real platform transitions, **predictive back**, Cupertino edge swipes, all from your app's `PageTransitionsTheme`:
+
+```dart
+ListDetailLayout<String>(
+  compactDetailMode: CompactDetailMode.route,
+  ...
+)
+```
+
+Selecting pushes a genuine page route holding the detail; back is the route's own (no interception). Resize across the breakpoint and the same detail element reparents between the route and the side-by-side pane — the state guarantee holds through real navigation. Hidden kept-alive tabs remove their route (keeping the selection) and restore it instantly when shown again.
+
 ### Sizing the panes
 
 `PaneConfig` is pure data; the divider visual is a builder you pick or write:

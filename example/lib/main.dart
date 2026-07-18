@@ -19,7 +19,8 @@
 //           └── Admin domain       (Workspace / Integrations / Appearance / Advanced)
 //               └── 4 tabs         each a multi-type list-detail
 //
-// Every list-detail runs CompactDetailMode.overlay, so on phone widths the
+// List-details default to CompactDetailMode.overlay (switchable live from
+// the ⚙ package-settings panel in the status strip), so on phone widths the
 // detail pane covers the tab bars and bottom nav — while inactive domains
 // stay mounted (tab routers keep state), which is exactly the case the
 // package's paint-visibility suppression exists for.
@@ -53,19 +54,25 @@ class _ExampleAppState extends State<ExampleApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
-      title: 'adaptive_layouts example',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
-      ),
-      darkTheme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.teal,
-          brightness: Brightness.dark,
+    return ListenableBuilder(
+      listenable: PackageSettings.instance,
+      builder: (context, _) => AdaptiveLayoutConfig(
+        expandedBreakpoint: PackageSettings.instance.expandedBreakpoint,
+        child: MaterialApp.router(
+          title: 'adaptive_layouts example',
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
+          ),
+          darkTheme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: Colors.teal,
+              brightness: Brightness.dark,
+            ),
+          ),
+          routerConfig: _router.config(),
         ),
       ),
-      routerConfig: _router.config(),
     );
   }
 }
@@ -75,14 +82,258 @@ class _ExampleAppState extends State<ExampleApp> {
 //
 // One breakpoint for the whole app: below it the shell uses a bottom nav and
 // detail panes slide over; at or above it the shell uses a rail and panes go
-// side-by-side. Matches the package's default (720).
+// side-by-side. Driven by the package settings panel (⚙ in the status strip)
+// through an app-level AdaptiveLayoutConfig.
 // =============================================================================
 
-const double kExpandedBreakpoint = 720;
-
 extension BreakpointX on BuildContext {
-  bool get isExpanded => MediaQuery.sizeOf(this).width >= kExpandedBreakpoint;
+  bool get isExpanded =>
+      MediaQuery.sizeOf(this).width >=
+      (AdaptiveLayoutConfig.maybeOf(this)?.expandedBreakpoint ??
+          AdaptiveLayoutConfig.defaultExpandedBreakpoint);
   bool get isCompact => !isExpanded;
+}
+
+// =============================================================================
+// PACKAGE SETTINGS
+//
+// Live-tweakable package configuration, so every knob the package offers can
+// be exercised while playing with the app. Opened from the ⚙ in the status
+// strip — as an adaptive modal, so the settings panel itself demos the modal.
+// =============================================================================
+
+enum DividerStyle { handle, line, none }
+
+class PackageSettings extends ChangeNotifier {
+  PackageSettings._();
+  static final PackageSettings instance = PackageSettings._();
+
+  // List-detail
+  CompactDetailMode compactDetailMode = CompactDetailMode.overlay;
+  DividerStyle divider = DividerStyle.handle;
+  PaneResizeMode resizeMode = PaneResizeMode.ratio;
+  bool anchorsEnabled = false;
+  double expandedBreakpoint = 720;
+  bool handleBackGesture = true;
+  int slideDurationMs = 300;
+
+  // Adaptive modal
+  bool modalMorph = true;
+  int modalMorphDurationMs = 350;
+  bool modalDragHandle = true;
+  bool modalPinnedColor = false;
+  bool modalBarrierDismissible = true;
+
+  DividerBuilder? get dividerBuilder => switch (divider) {
+    DividerStyle.handle => HandleDivider.builder,
+    DividerStyle.line => MaterialDivider.builder,
+    DividerStyle.none => null,
+  };
+
+  PaneConfig get paneConfig => PaneConfig(
+    resizeMode: resizeMode,
+    anchors: anchorsEnabled ? PaneAnchor.listDetail : const [],
+  );
+
+  CompactConfig get compactConfig => CompactConfig(
+    duration: Duration(milliseconds: slideDurationMs),
+    handleBackGesture: handleBackGesture,
+  );
+
+  ModalConfig get modalConfig => ModalConfig(
+    morph: modalMorph,
+    morphDuration: Duration(milliseconds: modalMorphDurationMs),
+    showDragHandle: modalDragHandle,
+    backgroundColor: modalPinnedColor ? const Color(0xFF223038) : null,
+    barrierDismissible: modalBarrierDismissible,
+  );
+
+  void update(void Function(PackageSettings s) change) {
+    change(this);
+    notifyListeners();
+  }
+}
+
+/// Opens the settings panel — as an adaptive modal, so the panel itself
+/// exercises the modal with whatever modal settings are currently chosen.
+void showPackageSettings(BuildContext context) {
+  showAdaptiveModal<void>(
+    context: context,
+    config: PackageSettings.instance.modalConfig,
+    builder: (context, mode) => SizedBox(
+      width: mode == ModalLayoutMode.dialog ? 460 : double.infinity,
+      child: const PackageSettingsPanel(),
+    ),
+  );
+}
+
+class PackageSettingsPanel extends StatelessWidget {
+  const PackageSettingsPanel({super.key});
+
+  Widget _section(BuildContext context, String title) => Padding(
+    padding: const EdgeInsets.only(top: 16, bottom: 4),
+    child: Text(title, style: Theme.of(context).textTheme.titleSmall),
+  );
+
+  Widget _choice<T>({
+    required BuildContext context,
+    required String label,
+    required List<T> values,
+    required T value,
+    required String Function(T) name,
+    required ValueChanged<T> onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(label, style: Theme.of(context).textTheme.labelMedium),
+          ),
+          SegmentedButton<T>(
+            segments: [
+              for (final v in values)
+                ButtonSegment(value: v, label: Text(name(v))),
+            ],
+            selected: {value},
+            showSelectedIcon: false,
+            onSelectionChanged: (selection) => onChanged(selection.first),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _toggle({
+    required String label,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return SwitchListTile(
+      title: Text(label),
+      value: value,
+      dense: true,
+      contentPadding: EdgeInsets.zero,
+      onChanged: onChanged,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = PackageSettings.instance;
+    return ListenableBuilder(
+      listenable: s,
+      builder: (context, _) => SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Package settings',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Everything applies live — resize, select, and dismiss while '
+              'flipping these. This panel is itself an adaptive modal. '
+              'Options appear only when the current choices use them.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            _section(context, 'Layout'),
+            _choice(
+              context: context,
+              label: 'Expanded breakpoint',
+              values: const [600.0, 720.0, 840.0],
+              value: s.expandedBreakpoint,
+              name: (double v) => v.toInt().toString(),
+              onChanged: (v) => s.update((s) => s.expandedBreakpoint = v),
+            ),
+            _section(context, 'Compact detail'),
+            _choice(
+              context: context,
+              label: 'Mode',
+              values: CompactDetailMode.values,
+              value: s.compactDetailMode,
+              name: (CompactDetailMode v) => v.name,
+              onChanged: (v) => s.update((s) => s.compactDetailMode = v),
+            ),
+            // Route mode delegates back handling and transitions to the
+            // real route — these two only exist for the slide-over modes.
+            if (s.compactDetailMode != CompactDetailMode.route) ...[
+              _toggle(
+                label: 'Intercept back gesture',
+                value: s.handleBackGesture,
+                onChanged: (v) => s.update((s) => s.handleBackGesture = v),
+              ),
+              _choice(
+                context: context,
+                label: 'Slide duration (ms)',
+                values: const [200, 300, 500],
+                value: s.slideDurationMs,
+                name: (int v) => '$v',
+                onChanged: (v) => s.update((s) => s.slideDurationMs = v),
+              ),
+            ],
+            _section(context, 'Expanded panes'),
+            _choice(
+              context: context,
+              label: 'Divider',
+              values: DividerStyle.values,
+              value: s.divider,
+              name: (DividerStyle v) => v.name,
+              onChanged: (v) => s.update((s) => s.divider = v),
+            ),
+            _choice(
+              context: context,
+              label: 'Resize mode',
+              values: PaneResizeMode.values,
+              value: s.resizeMode,
+              name: (PaneResizeMode v) => v.name,
+              onChanged: (v) => s.update((s) => s.resizeMode = v),
+            ),
+            _toggle(
+              label: 'Divider snap anchors',
+              value: s.anchorsEnabled,
+              onChanged: (v) => s.update((s) => s.anchorsEnabled = v),
+            ),
+            _section(context, 'Adaptive modal'),
+            _toggle(
+              label: 'Container-transform morph',
+              value: s.modalMorph,
+              onChanged: (v) => s.update((s) => s.modalMorph = v),
+            ),
+            if (s.modalMorph)
+              _choice(
+                context: context,
+                label: 'Morph duration (ms)',
+                values: const [350, 700, 1400],
+                value: s.modalMorphDurationMs,
+                name: (int v) => '$v',
+                onChanged: (v) => s.update((s) => s.modalMorphDurationMs = v),
+              ),
+            _toggle(
+              label: 'Sheet drag handle',
+              value: s.modalDragHandle,
+              onChanged: (v) => s.update((s) => s.modalDragHandle = v),
+            ),
+            _toggle(
+              label: 'Pin one surface color across forms',
+              value: s.modalPinnedColor,
+              onChanged: (v) => s.update((s) => s.modalPinnedColor = v),
+            ),
+            _toggle(
+              label: 'Barrier dismissible',
+              value: s.modalBarrierDismissible,
+              onChanged: (v) => s.update((s) => s.modalBarrierDismissible = v),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 // =============================================================================
@@ -773,7 +1024,7 @@ Widget domainTab({required IconData icon, required String label}) {
 //
 // The bridge between ListDetailLayout and auto_route: URL → controller on
 // deep links / back-forward, controller → URL on select / dismiss. Both run
-// the package in CompactDetailMode.overlay.
+// the package in whichever CompactDetailMode the ⚙ settings panel selects.
 // =============================================================================
 
 /// Single entity type per tab (tickets, people, builds...).
@@ -783,10 +1034,6 @@ class ListDetailRouter extends StatefulWidget {
   final ListPaneBuilder<String> listBuilder;
   final DetailPaneBuilder<String> detailBuilder;
   final WidgetBuilder? emptyStateBuilder;
-  final DividerBuilder? dividerBuilder;
-  final double? expandedBreakpoint;
-  final PaneConfig paneConfig;
-  final CompactConfig compactConfig;
 
   /// When provided, auto-clears selection if the entity no longer exists.
   final bool Function(String id)? selectedIdExists;
@@ -798,10 +1045,6 @@ class ListDetailRouter extends StatefulWidget {
     required this.listBuilder,
     required this.detailBuilder,
     this.emptyStateBuilder,
-    this.dividerBuilder,
-    this.expandedBreakpoint,
-    this.paneConfig = const PaneConfig(),
-    this.compactConfig = const CompactConfig(),
     this.selectedIdExists,
   });
 
@@ -926,16 +1169,18 @@ class _ListDetailRouterState extends State<ListDetailRouter> {
 
   @override
   Widget build(BuildContext context) {
+    // Layout configuration comes from the live package settings (⚙ in the
+    // status strip) so every mode and knob is testable at runtime.
+    final settings = PackageSettings.instance;
     return ListDetailLayout<String>(
       controller: _controller,
       listBuilder: widget.listBuilder,
       detailBuilder: widget.detailBuilder,
       emptyStateBuilder: widget.emptyStateBuilder,
-      dividerBuilder: widget.dividerBuilder,
-      expandedBreakpoint: widget.expandedBreakpoint,
-      paneConfig: widget.paneConfig,
-      compactConfig: widget.compactConfig,
-      compactDetailMode: CompactDetailMode.overlay,
+      dividerBuilder: settings.dividerBuilder,
+      paneConfig: settings.paneConfig,
+      compactConfig: settings.compactConfig,
+      compactDetailMode: settings.compactDetailMode,
     );
   }
 }
@@ -986,20 +1231,12 @@ class MultiTypeListDetailRouter extends StatefulWidget {
   final Map<String, ListDetailRouteType> types;
   final MultiTypeListBuilder listBuilder;
   final WidgetBuilder? emptyStateBuilder;
-  final DividerBuilder? dividerBuilder;
-  final double? expandedBreakpoint;
-  final PaneConfig paneConfig;
-  final CompactConfig compactConfig;
 
   const MultiTypeListDetailRouter({
     super.key,
     required this.types,
     required this.listBuilder,
     this.emptyStateBuilder,
-    this.dividerBuilder,
-    this.expandedBreakpoint,
-    this.paneConfig = const PaneConfig(),
-    this.compactConfig = const CompactConfig(),
   });
 
   @override
@@ -1176,6 +1413,7 @@ class _MultiTypeListDetailRouterState extends State<MultiTypeListDetailRouter> {
         ? widget.types[_selection.activeType]
         : null;
 
+    final settings = PackageSettings.instance;
     return ListDetailLayout<String>(
       controller: _controller,
       listBuilder: (context, selectedId, onSelect) {
@@ -1188,11 +1426,10 @@ class _MultiTypeListDetailRouterState extends State<MultiTypeListDetailRouter> {
         return const SizedBox.shrink();
       },
       emptyStateBuilder: widget.emptyStateBuilder,
-      dividerBuilder: widget.dividerBuilder,
-      expandedBreakpoint: widget.expandedBreakpoint,
-      paneConfig: widget.paneConfig,
-      compactConfig: widget.compactConfig,
-      compactDetailMode: CompactDetailMode.overlay,
+      dividerBuilder: settings.dividerBuilder,
+      paneConfig: settings.paneConfig,
+      compactConfig: settings.compactConfig,
+      compactDetailMode: settings.compactDetailMode,
     );
   }
 }
@@ -1269,6 +1506,12 @@ class StatusStrip extends StatelessWidget {
                       visualDensity: VisualDensity.compact,
                       onPressed: () => Store.instance.deploying.value = null,
                     ),
+                  IconButton(
+                    icon: const Icon(Icons.tune, size: 16),
+                    visualDensity: VisualDensity.compact,
+                    tooltip: 'Package settings',
+                    onPressed: () => showPackageSettings(context),
+                  ),
                   const SizedBox(width: 4),
                 ],
               ),
@@ -1826,12 +2069,6 @@ class TicketsTabScreen extends StatelessWidget {
       builder: (context, tickets, _) {
         return ListDetailRouter(
           idParamName: Params.ticketId,
-          paneConfig: const PaneConfig(
-            defaultListWidth: 300,
-            minListWidth: 240,
-            maxListRatio: 0.4,
-          ),
-          dividerBuilder: HandleDivider.builder,
           selectedIdExists: (id) => tickets.any((t) => t.id == id),
           listBuilder: (context, selectedId, onSelect) => DemoListPane(
             collection: store.tickets,
@@ -1841,7 +2078,7 @@ class TicketsTabScreen extends StatelessWidget {
             onNew: () async {
               final id = await showAdaptiveModal<String>(
                 context: context,
-                config: const ModalConfig(showDragHandle: true),
+                config: PackageSettings.instance.modalConfig,
                 builder: (context, mode) => SizedBox(
                   width: mode == ModalLayoutMode.dialog ? 420 : double.infinity,
                   child: const NewTicketScreen(),
@@ -1944,7 +2181,7 @@ class _TicketPaneState extends State<TicketPane> {
             tooltip: 'Ticket options (modal)',
             onPressed: () => showAdaptiveModal<void>(
               context: context,
-              config: const ModalConfig(showDragHandle: true),
+              config: PackageSettings.instance.modalConfig,
               builder: (context, mode) => SizedBox(
                 width: mode == ModalLayoutMode.dialog ? 420 : double.infinity,
                 child: TicketOptionsScreen(ticketId: widget.ticketId),
@@ -2283,7 +2520,6 @@ class _DirectorySegment extends StatelessWidget {
       builder: (context, items, _) {
         return ListDetailRouter(
           idParamName: idParamName,
-          dividerBuilder: HandleDivider.builder,
           selectedIdExists: (id) => items.any((i) => i.id == id),
           listBuilder: (context, selectedId, onSelect) => DemoListPane(
             collection: collection,
@@ -2542,7 +2778,6 @@ class BuildsTabScreen extends StatelessWidget {
       builder: (context, builds, _) {
         return ListDetailRouter(
           idParamName: Params.buildId,
-          dividerBuilder: HandleDivider.builder,
           selectedIdExists: (id) => builds.any((b) => b.id == id),
           listBuilder: (context, selectedId, onSelect) => DemoListPane(
             collection: store.builds,
@@ -2617,7 +2852,6 @@ class SetupTabScreen extends StatelessWidget {
       valueListenable: store.pipelines,
       builder: (context, pipelines, _) {
         return MultiTypeListDetailRouter(
-          dividerBuilder: HandleDivider.builder,
           emptyStateBuilder: (_) => const DemoEmptyPane(
             icon: Icons.tune_outlined,
             message: 'Select a setting',
@@ -2759,7 +2993,6 @@ class WorkspaceTabScreen extends StatelessWidget {
     final store = Store.instance;
 
     return MultiTypeListDetailRouter(
-      dividerBuilder: HandleDivider.builder,
       emptyStateBuilder: (_) => const DemoEmptyPane(
         icon: Icons.business_outlined,
         message: 'Select a workspace item',
@@ -2835,7 +3068,6 @@ class IntegrationsTabScreen extends StatelessWidget {
       valueListenable: store.services,
       builder: (context, services, _) {
         return MultiTypeListDetailRouter(
-          dividerBuilder: HandleDivider.builder,
           emptyStateBuilder: (_) => const DemoEmptyPane(
             icon: Icons.extension_outlined,
             message: 'Select an integration',
@@ -2926,7 +3158,6 @@ class AppearanceTabScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MultiTypeListDetailRouter(
-      dividerBuilder: HandleDivider.builder,
       emptyStateBuilder: (_) => const DemoEmptyPane(
         icon: Icons.palette_outlined,
         message: 'Select a setting',
@@ -2965,7 +3196,6 @@ class AdvancedTabScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MultiTypeListDetailRouter(
-      dividerBuilder: HandleDivider.builder,
       emptyStateBuilder: (_) => const DemoEmptyPane(
         icon: Icons.settings_suggest_outlined,
         message: 'Select an item',

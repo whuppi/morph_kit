@@ -326,7 +326,12 @@ class ModalMorphFlight {
                           minWidth: rect.width,
                           maxWidth: rect.width,
                           minHeight: 0,
-                          maxHeight: maxHeight,
+                          // Mirror the destination's height math: the
+                          // handle band eats into the bounded slot, so
+                          // constraint-filling content must measure at
+                          // height − band or the placeholder disagrees
+                          // with what actually lands.
+                          maxHeight: maxHeight - inset,
                           child: _MeasureSize(
                             sampleNeeded: !_widthSampled,
                             onSample: _recordSample,

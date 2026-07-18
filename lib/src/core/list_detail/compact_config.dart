@@ -25,6 +25,7 @@ class CompactConfig {
     this.detailBackground,
     this.handleBackGesture = true,
     this.useRootOverlay = false,
+    this.useRootNavigator = true,
   });
 
   /// Duration of the slide open/close animation.
@@ -69,4 +70,10 @@ class CompactConfig {
   ///
   /// Ignored when `CompactDetailMode.inline` is used.
   final bool useRootOverlay;
+
+  /// Which `Navigator` receives the detail route in
+  /// `CompactDetailMode.route`. True (default) pushes on the root
+  /// navigator so the detail covers nested shells (tab bars, nested
+  /// routers); false uses the nearest enclosing navigator.
+  final bool useRootNavigator;
 }

@@ -3,6 +3,7 @@
 // overlay-mode details under nested tab routers, URL sync, resize-across-
 // breakpoint state preservation, and selectedIdExists auto-dismiss.
 
+import 'package:adaptive_layouts/adaptive_layouts.dart';
 import 'package:adaptive_layouts_example/main.dart';
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart' hide ModalRoute;
@@ -224,6 +225,39 @@ void main() {
         rootRouter(tester).currentPath,
         startsWith('/work/tickets/ticket-'),
       );
+    });
+  });
+
+  group('package settings', () {
+    testWidgets('route mode gives the compact detail a real page route', (
+      tester,
+    ) async {
+      addTearDown(() {
+        PackageSettings.instance.update(
+          (s) => s.compactDetailMode = CompactDetailMode.overlay,
+        );
+      });
+      await pumpApp(tester, size: compact);
+
+      // Flip the mode from the ⚙ panel (itself an adaptive modal).
+      await tester.tap(find.byTooltip('Package settings'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('route'));
+      await tester.pumpAndSettle();
+      await tester.binding.handlePopRoute(); // close the panel
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Webhook drops events'));
+      await tester.pumpAndSettle();
+      expect(find.byType(TicketPane), findsOneWidget);
+      expect(rootRouter(tester).currentPath, '/work/tickets/ticket-hooks');
+
+      // REAL system back pops the real route; the URL syncs through the
+      // controller exactly as in the other modes.
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.byType(TicketPane), findsNothing);
+      expect(rootRouter(tester).currentPath, '/work/tickets');
     });
   });
 }

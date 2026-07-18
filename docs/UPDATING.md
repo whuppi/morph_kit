@@ -132,9 +132,13 @@ With the container transform (`ModalConfig.morph`, default on), three more:
    Pushing a visible destination brings back the "fully-formed empty sheet
    waiting for its content" artifact.
 9. **The handle band is `kMinInteractiveDimension`, imported — plus one
-   structural replica.** The ghost's placeholder spacer and the flight's
+   structural replica.** The ghost's placeholder inset and the flight's
    surface inset both use the SAME constant `BottomSheet` uses for its
-   content padding, so the metric cannot drift; the handle's look
+   content padding, so the metric cannot drift — and both apply it as
+   `Padding` INSIDE the bounded slot, never a spacer stacked above:
+   constraint-filling content must get height − band, or the slot
+   overflows by exactly the band (found live with a scrollable panel;
+   the flight mirrors the math via `maxHeight − inset`). The handle's look
    (`dragHandleSize ?? theme ?? Size(32, 4)`, radius h/2, color
    `dragHandleColor ?? theme ?? onSurfaceVariant`) is replicated from the
    SDK source and pinned by the landing-parity test — if a Flutter upgrade
@@ -150,7 +154,34 @@ With the container transform (`ModalConfig.morph`, default on), three more:
     flips a `ValueKey` so its Material mounts fresh instead of implicitly
     tweening elevation after landing.
 
-## §4 — Adding a component (divider / empty state)
+## §4 — The route-mode invariants (DO NOT BREAK)
+
+`CompactDetailMode.route` hosts the compact detail in a real page route.
+The machinery in `list_detail_layout.dart` holds:
+
+1. **All navigation flows through `_syncDetailRoute`, post-frame.** Build
+   detects, the reconciler acts. Navigating during build asserts.
+2. **Exactly one holder of the detail key per frame** — the route (while
+   `_detailRouted`), the expanded pane, or the one-frame bridge. The pane
+   leaves its slot empty while a route holds the key; the route still
+   covers the screen that frame, so the gap is invisible.
+3. **Dismissal is deselection — there is NO pop handoff.** The content
+   rides the popped route's real exit animation and dies with it, exactly
+   like the inline outgoing pattern. This is why predictive back (and its
+   cancel) needs no special handling. An exiting route keeps the key until
+   its animation is dismissed; new pushes wait for it.
+4. **The identity guard on `popped`.** A removed route also completes;
+   only the still-active route's completion is a user dismissal.
+5. **The route stays non-opaque.** The paint probe below detects "tab
+   hidden under the route"; an opaque route blinds the probe AND
+   un-paints the very layout that owns the route — a suppression loop.
+6. **Suppression is a build-armed one-shot.** `evaluate()` (layout) resets
+   the paint flag; the post-frame check PEEKS `paintedThisFrame` only
+   after a frame whose build armed it — clean idle frames (where paint
+   legitimately skips undirtied layers) can never false-trigger. The
+   check never resets the flag; `evaluate` owns the reset.
+
+## §5 — Adding a component (divider / empty state)
 
 1. Create the file under `src/components/{dividers|empty_states}/`.
 2. Match the shared contract: dividers implement the `DividerBuilder`
@@ -163,7 +194,7 @@ With the container transform (`ModalConfig.morph`, default on), three more:
    (idle / dragging / settling for dividers).
 6. Row in `CAPABILITY_ROADMAP.md`.
 
-## §5 — Adding a config field
+## §6 — Adding a config field
 
 1. Add the field to the right pure-data class (`PaneConfig`,
    `CompactConfig`) with a default that preserves current behavior.
@@ -177,7 +208,7 @@ With the container transform (`ModalConfig.morph`, default on), three more:
    lie — this package once shipped `anchors` / `resizeMode` / `isSettling`
    unimplemented; they're real now. Don't regress the standard.
 
-## §6 — Adding a layout widget
+## §7 — Adding a layout widget
 
 1. New folder under `src/core/<name>/` (peer of `list_detail/`, `split/`).
 2. Reuse the shared vocabulary: `AdaptiveLayoutConfig.resolveBreakpoint`,
@@ -188,7 +219,7 @@ With the container transform (`ModalConfig.morph`, default on), three more:
 4. Barrel export, mirrored test folder, roadmap rows, architecture tree
    update.
 
-## §7 — Changing the API surface
+## §8 — Changing the API surface
 
 Pre-1.0, the minor version is the breaking axis — bump it for any breaking
 change and say so in the changelog. Workspace consumers use `path:`

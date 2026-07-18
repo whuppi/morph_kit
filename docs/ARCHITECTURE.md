@@ -147,6 +147,21 @@ the same slide animation, swipe gesture, and back handling.
   navs, tab bars — while the widget stays in the tree (state preserved).
   `CompactConfig.useRootOverlay` picks the nearest vs root overlay, same
   convention as `Overlay.of` / `Navigator.of`.
+- **`route`**: the detail is pushed as a REAL page route
+  (`MaterialRouteTransitionMixin` on a non-opaque `PageRoute`), so the
+  app's `PageTransitionsTheme` — platform transitions, predictive back,
+  Cupertino edge swipes — applies natively; back belongs to the route
+  (no `PopScope`, no swipe machinery). One post-frame reconciler owns all
+  navigation: selection pushes, dismissal pops with the real exit (the
+  content rides the route out and dies with it — dismissal IS
+  deselection, so there is no pop-handoff and predictive-back cancel
+  needs nothing), resize swaps remove/push instantly while the keyed
+  detail reparents between route and pane (one key holder per frame; a
+  one-frame inline bridge covers the push gap). The paint probe
+  suppresses hidden tabs: a build pass that ends unpainted removes the
+  route (selection kept), and the next paint re-pushes instantly — the
+  route is non-opaque precisely so the layout below keeps painting for
+  this check.
 
 ### The always-showing portal
 
