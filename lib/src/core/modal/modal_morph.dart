@@ -15,6 +15,7 @@ class ModalFormVisuals {
     required this.shape,
     required this.color,
     required this.elevation,
+    required this.shadowColor,
   });
 
   /// Resolves the visuals for [mode] from [theme], mirroring the Material
@@ -30,6 +31,7 @@ class ModalFormVisuals {
               theme.dialogTheme.backgroundColor ??
               theme.colorScheme.surfaceContainerHigh,
           elevation: theme.dialogTheme.elevation ?? 6,
+          shadowColor: theme.dialogTheme.shadowColor ?? Colors.transparent,
         );
       case ModalLayoutMode.sheet:
         return ModalFormVisuals(
@@ -46,6 +48,7 @@ class ModalFormVisuals {
               theme.bottomSheetTheme.modalElevation ??
               theme.bottomSheetTheme.elevation ??
               1,
+          shadowColor: theme.bottomSheetTheme.shadowColor ?? Colors.transparent,
         );
     }
   }
@@ -59,6 +62,11 @@ class ModalFormVisuals {
   /// Surface elevation.
   final double elevation;
 
+  /// Shadow color — transparent by Material 3 default for both forms, so
+  /// the flight casts exactly the shadow the real chrome does (none,
+  /// unless the theme opts in).
+  final Color shadowColor;
+
   /// The visuals at fraction [t] between [a] and [b].
   static ModalFormVisuals lerp(
     ModalFormVisuals a,
@@ -69,6 +77,7 @@ class ModalFormVisuals {
       shape: ShapeBorder.lerp(a.shape, b.shape, t) ?? b.shape,
       color: Color.lerp(a.color, b.color, t) ?? b.color,
       elevation: lerpDouble(a.elevation, b.elevation, t) ?? b.elevation,
+      shadowColor: Color.lerp(a.shadowColor, b.shadowColor, t) ?? b.shadowColor,
     );
   }
 }
@@ -252,10 +261,16 @@ class ModalMorphFlight {
               rect: surfaceRect,
               child: IgnorePointer(
                 child: Material(
+                  // Material implicitly animates shape/elevation changes
+                  // over ~200ms. The flight IS the animation — without
+                  // zero here Material's internal tween lags the lerp and
+                  // the corners pop at landing.
+                  animationDuration: Duration.zero,
                   clipBehavior: Clip.antiAlias,
                   shape: visuals.shape,
                   color: visuals.color,
                   elevation: visuals.elevation,
+                  shadowColor: visuals.shadowColor,
                   child: Stack(
                     alignment: Alignment.topCenter,
                     children: [

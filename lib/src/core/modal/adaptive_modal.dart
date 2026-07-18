@@ -384,15 +384,25 @@ class _ModalScope<T> extends StatelessWidget {
         // near the corners would otherwise pop square at the handoff. The
         // ghost variant is fully invisible: the flight IS the dialog until
         // landing, when this same widget rebuilds with real chrome.
+        // The ValueKey flips the Dialog's identity at the ghost → real
+        // transition so its Material mounts fresh at full elevation —
+        // updating in place would implicitly tween the shadow over 200ms
+        // (a visible bloom after landing). The content survives the
+        // remount via its GlobalKey.
         return ghosting
             ? Dialog(
+                key: const ValueKey('ghost'),
                 backgroundColor: Colors.transparent,
                 elevation: 0,
                 shadowColor: Colors.transparent,
                 clipBehavior: Clip.antiAlias,
                 child: content,
               )
-            : Dialog(clipBehavior: Clip.antiAlias, child: content);
+            : Dialog(
+                key: const ValueKey('real'),
+                clipBehavior: Clip.antiAlias,
+                child: content,
+              );
       },
     );
   }

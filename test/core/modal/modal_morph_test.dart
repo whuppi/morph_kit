@@ -253,6 +253,28 @@ void main() {
     expect(tester.getRect(find.byType(CounterPane)).width, 500);
   });
 
+  testWidgets('the flight paints exactly like the chrome it becomes', (
+    tester,
+  ) async {
+    await pumpApp(tester, _opener(), size: const Size(1000, 800));
+    await _open(tester);
+    await _resizeIntoFlight(tester, const Size(500, 800));
+
+    final flightMaterial = tester
+        .widgetList<Material>(find.byType(Material))
+        .singleWhere(
+          (m) => m.clipBehavior == Clip.antiAlias && m.elevation > 0,
+        );
+    // Material implicitly animates shape/elevation over ~200ms — the
+    // flight must opt out or its paint lags the lerp and pops at landing.
+    expect(flightMaterial.animationDuration, Duration.zero);
+    // M3 dialogs and sheets default to a transparent shadow; the flight
+    // must match or its shadow vanishes at the handoff.
+    expect(flightMaterial.shadowColor, Colors.transparent);
+
+    await tester.pumpAndSettle(); // land the flight; free its ticker
+  });
+
   testWidgets('flight surface morphs geometry between the forms', (
     tester,
   ) async {

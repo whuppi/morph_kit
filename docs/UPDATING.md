@@ -132,6 +132,16 @@ With the container transform (`ModalConfig.morph`, default on), three more:
    `dragHandleColor ?? theme ?? onSurfaceVariant`) is replicated from the
    SDK source and pinned by the landing-parity test — if a Flutter upgrade
    moves it, that test fails loudly.
+10. **The flight's Material must not out-paint the flight.** Three paint
+    parities, each found as a real landing pop: the flight's `Material`
+    sets `animationDuration: Duration.zero` (Material implicitly tweens
+    shape/elevation over ~200ms, lagging the lerp — the widget tree
+    claims the lerped shape while the pixels stay behind); its
+    `shadowColor` resolves from the theme with the M3 default of
+    transparent (both real forms cast no shadow — a default black shadow
+    on the flight vanishes at handoff); and the ghost → real `Dialog`
+    flips a `ValueKey` so its Material mounts fresh instead of implicitly
+    tweening elevation after landing.
 
 ## §4 — Adding a component (divider / empty state)
 
