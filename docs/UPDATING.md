@@ -227,7 +227,13 @@ The machinery in `list_detail_layout.dart` holds:
    Hidden layouts (paint-probe false) always take the instant path — an
    entrance nobody watches is wasted, and the re-show contract expects
    instant. A first build is never a crossing (`_hasBuiltOnce`) — deep
-   links render settled.
+   links render settled. The EMPTY placeholder pane crosses too: it
+   reveals via `_detailPaneController` on expand, and on shrink build()
+   keeps the expanded geometry alive at the compact width
+   (`_emptyPaneRetreating`) until the retreat lands — the steady visuals
+   on both ends are a full-width list, so the tree swap is invisible.
+   During those builds `_lastExpandedWidth` must NOT update (it would
+   record the compact width and corrupt the crossing math).
 10. **`didUpdateWidget` mirrors initState's per-mode wiring.** Mode flips
    happen on LIVE layouts (settings screens exist). Entering route mode
    must attach the paint-probe listener — it IS the re-show chain; a

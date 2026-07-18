@@ -558,11 +558,17 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
     final isCurrentlyOpen =
         _slideController.value > 0 || _slideController.isAnimating;
 
+    // The pane controller means "selection presence" only in listOnly;
+    // in placeholder behavior it is a crossing transient for the empty
+    // pane, and selection changes must not drag it around.
+    final selectionDrivesPane =
+        widget.expandedEmptyBehavior == ExpandedEmptyBehavior.listOnly;
+
     if (shouldBeOpen && !isCurrentlyOpen) {
       // === ENTERING: detail was closed, now something is selected ===
       _outgoingDetailId = null;
       unawaited(_slideController.forward());
-      unawaited(_detailPaneController.forward());
+      if (selectionDrivesPane) unawaited(_detailPaneController.forward());
     } else if (!shouldBeOpen && isCurrentlyOpen) {
       // === EXITING: detail was open, selection cleared ===
       //
@@ -578,7 +584,7 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
       unawaited(
         Future.wait([
           _slideController.reverse(),
-          _detailPaneController.reverse(),
+          if (selectionDrivesPane) _detailPaneController.reverse(),
         ]).then((_) {
           if (mounted) {
             setState(() => _outgoingDetailId = null);
@@ -907,6 +913,16 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
     return (lo + hi) / 2;
   }
 
+  /// True while the empty placeholder pane is animating out after a
+  /// crossing into compact: build() keeps the expanded geometry alive at
+  /// the compact width until the retreat lands. The steady visuals on
+  /// both ends are identical (a full-width list), so the swap to the
+  /// real compact tree afterwards is invisible.
+  bool get _emptyPaneRetreating =>
+      widget.expandedEmptyBehavior == ExpandedEmptyBehavior.placeholder &&
+      !_controller.hasSelection &&
+      _detailPaneController.isAnimating;
+
   /// Detects a breakpoint-crossing frame against the previous build.
   /// A first build is never a crossing — deep links render settled.
   ({bool intoCompact, bool intoExpanded}) _detectCrossing(bool isExpanded) {
@@ -944,6 +960,33 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
         1.0 - dividerFraction,
       );
       unawaited(_slideController.forward());
+    }
+
+    // Placeholder behavior, nothing selected: the EMPTY pane is still an
+    // arrangement flip — it reveals from the end edge on expand and
+    // retreats into it on shrink, like any pane. Seeds skip when already
+    // animating so a rapid re-cross continues from the current position.
+    final placeholderEmpty =
+        widget.expandedEmptyBehavior == ExpandedEmptyBehavior.placeholder &&
+        !_controller.hasSelection;
+    if (crossing.intoExpanded && placeholderEmpty) {
+      if (!_detailPaneController.isAnimating) {
+        _detailPaneController.value = 0.0;
+      }
+      unawaited(_detailPaneController.forward());
+    }
+    if (crossing.intoCompact && placeholderEmpty) {
+      if (!_detailPaneController.isAnimating) {
+        _detailPaneController.value = 1.0;
+      }
+      // The compact tree has no pane to animate — build() keeps the
+      // expanded GEOMETRY alive at the compact width until the retreat
+      // lands, then the setState swaps in the real compact tree.
+      unawaited(
+        _detailPaneController.reverse().then((_) {
+          if (mounted) setState(() {});
+        }),
+      );
     }
 
     if (crossing.intoExpanded) {
@@ -1001,7 +1044,7 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
           // Overlay mode: OverlayPortal wraps BOTH layout modes so it's
           // always in the tree. The overlay child returns the sliding detail
           // when compact, or SizedBox.shrink() when expanded.
-          final innerLayout = isExpanded
+          final innerLayout = isExpanded || _emptyPaneRetreating
               ? buildExpandedLayout(constraints)
               : buildCompactOverlayList();
           return buildOverlayPortalWrapper(
@@ -1042,7 +1085,7 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
             }
           }
           _scheduleRouteSync();
-          final innerLayout = isExpanded
+          final innerLayout = isExpanded || _emptyPaneRetreating
               ? buildExpandedLayout(constraints)
               : buildCompactRouteList();
           return PaintVisibilityObserver(
@@ -1051,7 +1094,7 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
           );
         }
 
-        return isExpanded
+        return isExpanded || _emptyPaneRetreating
             ? buildExpandedLayout(constraints)
             : buildCompactLayout();
       },

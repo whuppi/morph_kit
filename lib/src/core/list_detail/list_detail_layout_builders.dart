@@ -26,17 +26,21 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
 
   Widget _buildExpandedLayoutInner(BoxConstraints constraints) {
     final availableWidth = constraints.maxWidth;
-    _lastExpandedWidth = availableWidth;
+    // Not during an empty-pane retreat: that build runs at the COMPACT
+    // width and would corrupt the reference the crossing math uses.
+    if (_isExpanded) _lastExpandedWidth = availableWidth;
     // Both animations scale SLOTS only — the width model is untouched,
     // so dividers and anchors keep their real geometry when they settle.
     final entry = _expandEntryController.isAnimating
         ? widget.compactConfig.curve.transform(_expandEntryController.value)
         : 1.0;
-    // Detail-pane presence (listOnly): 0 = list owns the full width.
-    // Placeholder behavior pins it at 1 — the pane slot always exists.
     final listOnly =
         widget.expandedEmptyBehavior == ExpandedEmptyBehavior.listOnly;
-    final pane = listOnly
+    // Detail-pane presence: 0 = list owns the full width. In listOnly it
+    // tracks the selection; in placeholder behavior it is pinned at 1
+    // except while an empty-pane crossing animation (reveal or retreat)
+    // is in flight.
+    final pane = listOnly || _detailPaneController.isAnimating
         ? widget.compactConfig.curve.transform(_detailPaneController.value)
         : 1.0;
     final finalListWidth = _paneWidth.width(availableWidth);
@@ -109,6 +113,19 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
     } else {
       detailSlot =
           widget.emptyStateBuilder?.call(context) ?? const SizedBox.shrink();
+      if (pane < 1.0) {
+        // The empty pane rides its crossing animation with the same
+        // reveal discipline as content panes: laid at final width,
+        // clipped — no re-centering wobble while the slot animates.
+        detailSlot = ClipRect(
+          child: OverflowBox(
+            minWidth: availableWidth - finalListWidth,
+            maxWidth: availableWidth - finalListWidth,
+            alignment: AlignmentDirectional.centerStart,
+            child: detailSlot,
+          ),
+        );
+      }
     }
 
     return Stack(

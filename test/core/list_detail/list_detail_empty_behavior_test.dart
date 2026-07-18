@@ -114,6 +114,53 @@ void main() {
     expect(find.text('count: 2'), findsOneWidget);
   });
 
+  for (final mode in CompactDetailMode.values) {
+    testWidgets(
+      'placeholder (${mode.name}): empty-pane crossings animate both ways',
+      (tester) async {
+        await pumpApp(
+          tester,
+          Material(
+            child: ListDetailLayout<String>(
+              compactDetailMode: mode,
+              listBuilder: (context, selectedId, onSelect) =>
+                  const ColoredBox(key: Key('list'), color: Color(0xFF111111)),
+              detailBuilder: (context, id, mode, onDismiss) => Text('d-$id'),
+              emptyStateBuilder: (context) => const Text('empty state'),
+            ),
+          ),
+          size: const Size(500, 800),
+        );
+
+        // Into expanded: the empty pane REVEALS — mid-flight the list has
+        // yielded partially and the placeholder is already on screen.
+        tester.view.physicalSize = const Size(1000, 800);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 40));
+        final midList = tester.getSize(find.byKey(const Key('list'))).width;
+        expect(midList, lessThan(1000));
+        expect(midList, greaterThan(500));
+        expect(find.text('empty state'), findsOneWidget);
+        await tester.pumpAndSettle();
+        expect(tester.getSize(find.byKey(const Key('list'))).width, 500);
+
+        // Into compact: the empty pane RETREATS — the expanded geometry
+        // stays alive at the compact width until the retreat lands.
+        tester.view.physicalSize = const Size(500, 800);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 40));
+        expect(find.text('empty state'), findsOneWidget); // still riding out
+        expect(
+          tester.getSize(find.byKey(const Key('list'))).width,
+          lessThan(500),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('empty state'), findsNothing);
+        expect(tester.getSize(find.byKey(const Key('list'))).width, 500);
+      },
+    );
+  }
+
   testWidgets('live flip between behaviors lands the settled layout', (
     tester,
   ) async {

@@ -172,7 +172,7 @@ All three modes keep the state guarantee across resizes. They differ in what the
 
 Rule of thumb: `inline` when the surrounding chrome should stay present, `overlay` for a full-screen feel without real navigation, `route` when the detail should behave like a native page and inherit every platform back-gesture convention as it evolves. The per-value doc comments on `CompactDetailMode` carry the full contracts.
 
-Breakpoint crossings animate the pane re-arrangement in every mode — fold/unfold, rotation, split-screen snap, or dragging the window edge across the threshold. Only the pane geometry itself tracks the drag without motion (a lagging pane would fight your hand); the arrangement flip is always animated, the way Compose's canonical scaffolds and desktop sidebars behave.
+Breakpoint crossings animate the pane re-arrangement in every mode — fold/unfold, rotation, split-screen snap, or dragging the window edge across the threshold. Only the pane geometry itself tracks the drag without motion (a lagging pane would fight your hand); the arrangement flip is always animated, the way Compose's canonical scaffolds and desktop sidebars behave. That includes the EMPTY placeholder pane: with nothing selected it reveals from the end edge on expand and retreats into it on shrink.
 
 Entering expanded, the arriving list is laid out at its final width and slides in clipped — content never reflows mid-entry, the way a desktop sidebar arrives. Prefer the list to lay out live and grow into its pane instead? `PaneConfig(entryStyle: ExpandedEntryStyle.resize)`.
 
