@@ -479,22 +479,6 @@ class MonitorTabRoute extends PageRouteInfo<void> {
 }
 
 /// generated route for
-/// [NewTicketScreen]
-class NewTicketRoute extends PageRouteInfo<void> {
-  const NewTicketRoute({List<PageRouteInfo>? children})
-    : super(NewTicketRoute.name, initialChildren: children);
-
-  static const String name = 'NewTicketRoute';
-
-  static PageInfo page = PageInfo(
-    name,
-    builder: (data) {
-      return const NewTicketScreen();
-    },
-  );
-}
-
-/// generated route for
 /// [OpsDomainScreen]
 class OpsDomainRoute extends PageRouteInfo<void> {
   const OpsDomainRoute({List<PageRouteInfo>? children})
@@ -1000,58 +984,6 @@ class TeamsTabRoute extends PageRouteInfo<void> {
       return const TeamsTabScreen();
     },
   );
-}
-
-/// generated route for
-/// [TicketOptionsScreen]
-class TicketOptionsRoute extends PageRouteInfo<TicketOptionsRouteArgs> {
-  TicketOptionsRoute({
-    Key? key,
-    required String ticketId,
-    List<PageRouteInfo>? children,
-  }) : super(
-         TicketOptionsRoute.name,
-         args: TicketOptionsRouteArgs(key: key, ticketId: ticketId),
-         rawPathParams: {'ticketId': ticketId},
-         initialChildren: children,
-       );
-
-  static const String name = 'TicketOptionsRoute';
-
-  static PageInfo page = PageInfo(
-    name,
-    builder: (data) {
-      final pathParams = data.inheritedPathParams;
-      final args = data.argsAs<TicketOptionsRouteArgs>(
-        orElse: () =>
-            TicketOptionsRouteArgs(ticketId: pathParams.getString('ticketId')),
-      );
-      return TicketOptionsScreen(key: args.key, ticketId: args.ticketId);
-    },
-  );
-}
-
-class TicketOptionsRouteArgs {
-  const TicketOptionsRouteArgs({this.key, required this.ticketId});
-
-  final Key? key;
-
-  final String ticketId;
-
-  @override
-  String toString() {
-    return 'TicketOptionsRouteArgs{key: $key, ticketId: $ticketId}';
-  }
-
-  @override
-  bool operator ==(Object other) {
-    if (identical(this, other)) return true;
-    if (other is! TicketOptionsRouteArgs) return false;
-    return key == other.key && ticketId == other.ticketId;
-  }
-
-  @override
-  int get hashCode => key.hashCode ^ ticketId.hashCode;
 }
 
 /// generated route for

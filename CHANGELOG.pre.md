@@ -66,6 +66,7 @@ First prerelease — adaptive layout widgets that morph between phone and deskto
 
 - **Widgets:** `ListDetailLayout` (list + selected detail) and `AdaptiveSplit` (two always-present panes) switch between slide-over (compact) and side-by-side (expanded) at a configurable breakpoint.
 - **State preservation:** pane widget instances survive the compact ↔ expanded morph — drafts, scroll positions, and in-flight animations carry across a window resize.
+- **Adaptive modal:** `showAdaptiveModal` presents a real Material dialog on expanded widths and a real Material bottom sheet on compact — and live-swaps between the two real routes on resize, preserving content state and the awaited result.
 - **Overlay mode:** the compact detail can render in the Navigator's overlay, covering bottom navs and tab bars; inactive kept-alive tabs suppress their overlays automatically.
 - **Divider:** draggable with min/max clamps, optional anchor snap points with a settle animation, and ratio or fixed-pixel resize modes; `HandleDivider` and `MaterialDivider` ship as ready-made visuals.
 - **Controller:** `ListDetailController` with an animation-aware `isDetailVisible` for app-shell timing; router-agnostic — the example ships full URL-sync reference wiring.

@@ -23,6 +23,7 @@ while an active row is not `DONE` or `WONT_DO`. Statuses: `DONE` ·
 | Inline compact mode | DONE | Default; detail stays inside the layout's bounds |
 | Overlay compact mode (covers bottom nav / tabs) | DONE | Always-showing `OverlayPortal`; nearest or root overlay |
 | Overlay suppression for inactive kept-alive tabs | DONE | Paint-visibility probe; zero-frame hide, one-frame re-show |
+| True-route compact mode (real push/pop, preserved instance) | PLANNED | Reuses the modal's route-swap primitive; restores predictive back + platform transitions; the hard part is the pop-direction handoff (predictive-back cancel) |
 | Empty state builder (expanded, no selection) | DONE | Nullable; `IconMessageEmpty` shipped as a convenience |
 | RTL support | DONE | Slide, swipe, and divider drag are direction-aware |
 | Deep-link-friendly controller semantics | DONE | Initial selection renders without animation; example ships URL sync |
@@ -35,6 +36,18 @@ while an active row is not `DONE` or `WONT_DO`. Statuses: `DONE` ·
 | Primary at start or end | DONE | Drag direction inverts for end-positioned primary |
 | Compact: vertical stack or hidden secondary | DONE | `SplitCompactBehavior` |
 | Pane state preservation across the morph | DONE | GlobalKeys on both panes |
+
+## Adaptive modal (`showAdaptiveModal`)
+
+| Capability | Status | Notes |
+|---|---|---|
+| Real Material routes per form | DONE | `DialogRoute` on expanded, `ModalBottomSheetRoute` on compact — chrome, theming, a11y all Material's |
+| Live dialog ↔ sheet swap on resize | DONE | Atomic `removeRoute` + zero-entrance `push`; one-frame handoff |
+| Content state preserved across swaps | DONE | `GlobalKey` reparent through the shared Navigator overlay; unit tests + example journey |
+| Result future survives swaps | DONE | Session completer with route-identity guard |
+| Breakpoint resolution | DONE | param > inherited `AdaptiveLayoutConfig` > 720, resolved at call time |
+| Config forwarding | DONE | barrier, safe area, scroll control, drag, drag handle |
+| Animated cross-form morph | WONT_DO | A route swap is a cut by design; real route semantics were chosen over a custom animatable chrome |
 
 ## Pane system (shared)
 

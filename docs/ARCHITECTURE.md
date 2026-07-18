@@ -34,6 +34,10 @@ lib/
         │   ├── list_detail_layout.dart        # widget + state (lifecycle, animation, gestures)
         │   ├── list_detail_layout_builders.dart  # part: build methods
         │   └── paint_visibility_detector.dart # overlay suppression for inactive tabs
+        ├── modal/
+        │   ├── adaptive_modal.dart            # showAdaptiveModal + route-swap session
+        │   ├── modal_config.dart              # forwards to the Material routes
+        │   └── modal_layout_mode.dart         # dialog / sheet
         ├── shared/
         │   ├── adaptive_layout_config.dart    # inherited breakpoint config
         │   ├── divider_builder.dart           # shared DividerBuilder typedef
@@ -78,6 +82,18 @@ The generic sibling: two panes (primary / secondary) with no selection
 concept. Expanded = side-by-side with the same draggable divider; compact =
 vertical stack or hidden secondary (`SplitCompactBehavior`). Used for
 player-style screens where both panes always exist.
+
+### `showAdaptiveModal`
+
+The modal member of the family — a function, not a widget, because modals
+are routes. Expanded widths get a real `DialogRoute`; compact widths a real
+`ModalBottomSheetRoute` — Material's own chrome, theming, drag physics, and
+accessibility. On a resize across the breakpoint the active route is
+atomically replaced (`removeRoute` + zero-entrance `push` in one frame) and
+the content element reparents into the new route under a stable `GlobalKey`.
+A session object proxies the pop result across swaps, so the caller's
+awaited future completes with the dismissal value no matter how many form
+changes happened. `ModalConfig` only forwards parameters to the two routes.
 
 ### `ListDetailController<T>`
 
@@ -158,6 +174,11 @@ external `controller.dismiss()` calls, via a last-seen-id fallback).
 
 ---
 
+The modal extends the same mechanism across routes: all routes of a
+Navigator share one Overlay — one element tree — so the keyed content
+reparents between the outgoing and incoming route in the swap frame exactly
+as pane content does between compact and expanded builds.
+
 ## 5. Pane width: config, model, anchors
 
 `PaneConfig` is pure data: `defaultListWidth`, `minListWidth`,
@@ -199,6 +220,7 @@ slide direction, swipe-dismiss direction, and divider drag all flip.
 | Controller pattern | One code path; simple users get an auto-controller, advanced users bring their own. Same as `ScrollController`. |
 | `isDetailVisible` animation-aware | App shells need visual state (nav-bar timing), not data state. |
 | Widget-level morph, not routes | Instance preservation across resize is the hard guarantee; a route-based compact detail would need a no-transition page dance to keep it. |
+| Real Material routes for the modal | Dialogs and sheets should inherit app theme, drag physics, and future framework behavior; the atomic route swap + keyed reparent keeps the instance guarantee without re-implementing chrome. |
 | Always-showing portal + paint probe | The only found shape that both dodges `OverlayPortalController`'s layout-phase assertion and suppresses inactive tabs' overlays. |
 | `select()` no-op on same id | No guessed intent; toggle is the caller's logic. |
 | Selection validation NOT in the package | Layout doesn't know about data existence; the app clears selection when an entity dies (see the example's `selectedIdExists` pattern). |

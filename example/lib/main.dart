@@ -8,7 +8,7 @@
 //   └── RootShellScreen            persistent status bar ABOVE the router
 //       └── AppShellScreen         domain tabs (bottom nav ↔ rail at 720px)
 //           ├── Work domain        secondary tab bar (Tickets / Directory / Prefs)
-//           │   ├── Tickets        ListDetailRouter → overlay detail + modals
+//           │   ├── Tickets        ListDetailRouter → overlay detail + adaptive modals
 //           │   ├── Directory      ANOTHER nested tab router, 4 segments,
 //           │   │                  each segment its own overlay list-detail
 //           │   └── Prefs          plain settings tab
@@ -24,7 +24,7 @@
 // stay mounted (tab routers keep state), which is exactly the case the
 // package's paint-visibility suppression exists for.
 //
-// Also exercised: deep links straight into modals and details (type a URL on
+// Also exercised: deep links straight into details (type a URL on
 // web), swipe-to-dismiss, back-gesture interception, divider drag, window
 // resize across the breakpoint with widget-state preservation (type a comment
 // draft in a ticket, resize, the draft survives).
@@ -33,7 +33,6 @@ import 'package:adaptive_layouts/adaptive_layouts.dart';
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' hide ModalRoute;
-import 'package:flutter/rendering.dart' show RenderProxyBox;
 import 'package:flutter/scheduler.dart';
 
 part 'main.gr.dart';
@@ -66,7 +65,7 @@ class _ExampleAppState extends State<ExampleApp> {
           brightness: Brightness.dark,
         ),
       ),
-      routerConfig: _router.config(deepLinkBuilder: handleDeepLink),
+      routerConfig: _router.config(),
     );
   }
 }
@@ -393,8 +392,6 @@ abstract final class Paths {
   static const work = 'work';
   static const tickets = 'tickets';
   static const ticketWithParam = ':${Params.ticketId}';
-  static const newTicketPath = 'work/tickets/new';
-  static const ticketOptionsPath = 'work/tickets/:${Params.ticketId}/options';
   static const directory = 'directory';
   static const prefs = 'prefs';
   static const people = 'people';
@@ -468,8 +465,6 @@ abstract final class Params {
 // Route structure:
 // ```
 // /
-// ├── /work/tickets/new                (modal — handled by deepLinkBuilder)
-// ├── /work/tickets/:ticketId/options  (modal — handled by deepLinkBuilder)
 // └── (app shell)
 //     ├── /work
 //     │   ├── /tickets/:ticketId
@@ -508,16 +503,6 @@ class AppRouter extends RootStackRouter {
       page: RootShellRoute.page,
       path: Paths.root,
       children: [
-        // Modals — registered at root level so the paths resolve; the
-        // deepLinkBuilder builds the stack (content + modal) for cold links.
-        AdaptiveModalRoute(
-          page: NewTicketRoute.page,
-          path: Paths.newTicketPath,
-        ),
-        AdaptiveModalRoute(
-          page: TicketOptionsRoute.page,
-          path: Paths.ticketOptionsPath,
-        ),
 
         // App shell — domain navigation (bottom nav / rail).
         AutoRoute(
@@ -714,370 +699,6 @@ class AppRouter extends RootStackRouter {
       ],
     ),
   ];
-}
-
-// =============================================================================
-// DEEP LINK HANDLER
-//
-// A deep link straight to a modal (like /work/tickets/new) must build the
-// FULL route stack so the app content renders behind the modal. Without this,
-// a cold link shows only the modal with nothing behind it.
-// =============================================================================
-
-DeepLink handleDeepLink(PlatformDeepLink deepLink) {
-  final path = deepLink.path;
-
-  for (final modal in _modalDeepLinks) {
-    final match = modal.matches(path);
-    if (match != null) {
-      return DeepLink([modal.buildNestedRoute(match)]);
-    }
-  }
-
-  return deepLink;
-}
-
-abstract class _ModalDeepLink {
-  Map<String, String>? matches(String path);
-  PageRouteInfo buildNestedRoute(Map<String, String> params);
-}
-
-class _StaticModalDeepLink extends _ModalDeepLink {
-  final String path;
-  final PageRouteInfo Function() _build;
-
-  _StaticModalDeepLink({
-    required this.path,
-    required PageRouteInfo Function() build,
-  }) : _build = build;
-
-  @override
-  Map<String, String>? matches(String inputPath) =>
-      inputPath == path ? {} : null;
-
-  @override
-  PageRouteInfo buildNestedRoute(Map<String, String> params) => _build();
-}
-
-class _DynamicModalDeepLink extends _ModalDeepLink {
-  final RegExp pattern;
-  final List<String> paramNames;
-  final PageRouteInfo Function(Map<String, String> params) _build;
-
-  _DynamicModalDeepLink({
-    required this.pattern,
-    required this.paramNames,
-    required PageRouteInfo Function(Map<String, String> params) build,
-  }) : _build = build;
-
-  @override
-  Map<String, String>? matches(String path) {
-    final match = pattern.firstMatch(path);
-    if (match == null) return null;
-    final params = <String, String>{};
-    for (var i = 0; i < paramNames.length; i++) {
-      params[paramNames[i]] = match.group(i + 1)!;
-    }
-    return params;
-  }
-
-  @override
-  PageRouteInfo buildNestedRoute(Map<String, String> params) => _build(params);
-}
-
-final _modalDeepLinks = <_ModalDeepLink>[
-  // New ticket modal: /work/tickets/new — tickets list behind, modal on top.
-  _StaticModalDeepLink(
-    path: '/work/tickets/new',
-    build: () => RootShellRoute(
-      children: [
-        AppShellRoute(
-          children: [
-            WorkDomainRoute(children: [TicketsTabRoute()]),
-          ],
-        ),
-        NewTicketRoute(),
-      ],
-    ),
-  ),
-
-  // Ticket options modal: /work/tickets/:ticketId/options — ticket selected
-  // behind the modal.
-  _DynamicModalDeepLink(
-    pattern: RegExp(r'^/work/tickets/([^/]+)/options$'),
-    paramNames: [Params.ticketId],
-    build: (params) {
-      final ticketId = params[Params.ticketId]!;
-      return RootShellRoute(
-        children: [
-          AppShellRoute(
-            children: [
-              WorkDomainRoute(
-                children: [
-                  TicketsTabRoute(children: [TicketRoute(id: ticketId)]),
-                ],
-              ),
-            ],
-          ),
-          TicketOptionsRoute(ticketId: ticketId),
-        ],
-      );
-    },
-  ),
-];
-
-// =============================================================================
-// ADAPTIVE MODAL ROUTE
-//
-// Dialog on expanded widths, bottom sheet on compact — and it live-transforms
-// between the two when the window resizes across the breakpoint, preserving
-// the content widget's state.
-// =============================================================================
-
-class AdaptiveModalRoute extends CustomRoute {
-  AdaptiveModalRoute({required super.page, super.path})
-    : super(customRouteBuilder: _adaptiveBuilder, fullscreenDialog: true);
-
-  static Route<T> _adaptiveBuilder<T>(
-    BuildContext context,
-    Widget child,
-    AutoRoutePage<T> page,
-  ) {
-    return _AdaptiveModalPageRoute<T>(settings: page, child: child);
-  }
-}
-
-class _AdaptiveModalPageRoute<T> extends PopupRoute<T> {
-  _AdaptiveModalPageRoute({
-    required this.child,
-    required RouteSettings settings,
-  }) : super(settings: settings);
-
-  final Widget child;
-
-  @override
-  Color? get barrierColor => Colors.black54;
-
-  @override
-  String? get barrierLabel => 'Dismiss';
-
-  @override
-  bool get barrierDismissible => true;
-
-  @override
-  Duration get transitionDuration => const Duration(milliseconds: 300);
-
-  @override
-  Duration get reverseTransitionDuration => const Duration(milliseconds: 250);
-
-  @override
-  Widget buildPage(
-    BuildContext context,
-    Animation<double> animation,
-    Animation<double> secondaryAnimation,
-  ) {
-    return _AdaptiveModalPage<T>(route: this, child: child);
-  }
-}
-
-class _AdaptiveModalPage<T> extends StatefulWidget {
-  final _AdaptiveModalPageRoute<T> route;
-  final Widget child;
-
-  const _AdaptiveModalPage({required this.route, required this.child});
-
-  @override
-  State<_AdaptiveModalPage<T>> createState() => _AdaptiveModalPageState<T>();
-}
-
-class _AdaptiveModalPageState<T> extends State<_AdaptiveModalPage<T>>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _dragController;
-  double _sheetHeight = 400;
-
-  @override
-  void initState() {
-    super.initState();
-    _dragController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 250),
-      value: 0,
-    );
-  }
-
-  @override
-  void dispose() {
-    _dragController.dispose();
-    super.dispose();
-  }
-
-  void _onDragStart(DragStartDetails details) => _dragController.stop();
-
-  void _onDragUpdate(DragUpdateDetails details) {
-    if (_sheetHeight <= 0) return;
-    final delta = details.primaryDelta ?? 0;
-    _dragController.value = (_dragController.value + delta / _sheetHeight)
-        .clamp(0.0, 1.0);
-  }
-
-  void _onDragEnd(DragEndDetails details) {
-    final velocity = details.primaryVelocity ?? 0;
-    if (velocity > 300 || _dragController.value > 0.4) {
-      _dragController.forward().then((_) {
-        if (mounted) Navigator.of(context).pop();
-      });
-    } else {
-      _dragController.reverse();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final animation = widget.route.animation!;
-    return context.isExpanded
-        ? _buildDialog(context, animation)
-        : _buildBottomSheet(context, animation);
-  }
-
-  Widget _buildDialog(BuildContext context, Animation<double> animation) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final curved = CurvedAnimation(
-      parent: animation,
-      curve: Curves.easeOutCubic,
-      reverseCurve: Curves.easeInCubic,
-    );
-
-    return SafeArea(
-      child: Center(
-        child: FadeTransition(
-          opacity: curved,
-          child: ScaleTransition(
-            scale: Tween<double>(begin: 0.9, end: 1.0).animate(curved),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: 560,
-                maxHeight: MediaQuery.sizeOf(context).height * 0.85,
-              ),
-              child: Material(
-                color: colorScheme.surfaceContainerHigh,
-                borderRadius: BorderRadius.circular(28),
-                clipBehavior: Clip.antiAlias,
-                elevation: 6,
-                child: widget.child,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomSheet(BuildContext context, Animation<double> animation) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final bottomPadding = MediaQuery.viewInsetsOf(context).bottom;
-    final screenHeight = MediaQuery.sizeOf(context).height;
-    final slide = CurvedAnimation(
-      parent: animation,
-      curve: Curves.easeOutCubic,
-      reverseCurve: Curves.easeInCubic,
-    );
-
-    return AnimatedBuilder(
-      animation: Listenable.merge([slide, _dragController]),
-      builder: (context, child) {
-        final totalOffset =
-            (1 - slide.value) + (slide.value * _dragController.value);
-
-        return Align(
-          alignment: Alignment.bottomCenter,
-          child: Transform.translate(
-            offset: Offset(0, totalOffset * _sheetHeight),
-            child: Padding(
-              padding: EdgeInsets.only(bottom: bottomPadding),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: screenHeight * 0.9),
-                child: _SheetHeightReporter(
-                  onHeightChanged: (h) => _sheetHeight = h,
-                  child: Material(
-                    color: colorScheme.surfaceContainerHigh,
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(28),
-                    ),
-                    clipBehavior: Clip.antiAlias,
-                    elevation: 8,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        GestureDetector(
-                          onVerticalDragStart: _onDragStart,
-                          onVerticalDragUpdate: _onDragUpdate,
-                          onVerticalDragEnd: _onDragEnd,
-                          behavior: HitTestBehavior.opaque,
-                          child: Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            child: Center(
-                              child: Container(
-                                width: 32,
-                                height: 4,
-                                decoration: BoxDecoration(
-                                  color: colorScheme.onSurfaceVariant
-                                      .withValues(alpha: 0.4),
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        Flexible(child: widget.child),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _SheetHeightReporter extends SingleChildRenderObjectWidget {
-  final ValueChanged<double> onHeightChanged;
-
-  const _SheetHeightReporter({
-    required this.onHeightChanged,
-    required Widget child,
-  }) : super(child: child);
-
-  @override
-  RenderObject createRenderObject(BuildContext context) =>
-      _RenderSheetHeightReporter(onHeightChanged);
-
-  @override
-  void updateRenderObject(
-    BuildContext context,
-    _RenderSheetHeightReporter renderObject,
-  ) {
-    renderObject.onHeightChanged = onHeightChanged;
-  }
-}
-
-class _RenderSheetHeightReporter extends RenderProxyBox {
-  ValueChanged<double> onHeightChanged;
-
-  _RenderSheetHeightReporter(this.onHeightChanged);
-
-  @override
-  void performLayout() {
-    super.performLayout();
-    if (hasSize && size.height > 0) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        onHeightChanged(size.height);
-      });
-    }
-  }
 }
 
 // =============================================================================
@@ -2217,7 +1838,19 @@ class TicketsTabScreen extends StatelessWidget {
             selectedId: selectedId,
             onSelect: onSelect,
             newLabel: 'New ticket',
-            onNew: () => context.router.push(const NewTicketRoute()),
+            onNew: () async {
+              final id = await showAdaptiveModal<String>(
+                context: context,
+                config: const ModalConfig(showDragHandle: true),
+                builder: (context, mode) => SizedBox(
+                  width: mode == ModalLayoutMode.dialog ? 420 : double.infinity,
+                  child: const NewTicketScreen(),
+                ),
+              );
+              if (id != null && context.mounted) {
+                context.router.navigatePath('/work/tickets/$id');
+              }
+            },
             emptyIcon: Icons.confirmation_number_outlined,
           ),
           detailBuilder: (context, id, mode, onDismiss) =>
@@ -2309,8 +1942,13 @@ class _TicketPaneState extends State<TicketPane> {
           IconButton(
             icon: const Icon(Icons.more_horiz),
             tooltip: 'Ticket options (modal)',
-            onPressed: () => context.router.push(
-              TicketOptionsRoute(ticketId: widget.ticketId),
+            onPressed: () => showAdaptiveModal<void>(
+              context: context,
+              config: const ModalConfig(showDragHandle: true),
+              builder: (context, mode) => SizedBox(
+                width: mode == ModalLayoutMode.dialog ? 420 : double.infinity,
+                child: TicketOptionsScreen(ticketId: widget.ticketId),
+              ),
             ),
           ),
           if (widget.mode == DetailLayoutMode.sideBySide)
@@ -2447,7 +2085,6 @@ class WorkPrefsTabScreen extends StatelessWidget {
 
 // ── Work modals ──
 
-@RoutePage()
 class NewTicketScreen extends StatefulWidget {
   const NewTicketScreen({super.key});
 
@@ -2477,9 +2114,9 @@ class _NewTicketScreenState extends State<NewTicketScreen> {
         icon: Icons.fiber_new_outlined,
       ),
     );
-    // Close the modal, then navigate into the new ticket (list-detail URL).
-    Navigator.of(context).pop();
-    context.router.navigatePath('/work/tickets/$id');
+    // Pop with the id as the modal result — the opener navigates. The
+    // result future survives any dialog ↔ sheet swaps in between.
+    Navigator.of(context).pop(id);
   }
 
   @override
@@ -2520,12 +2157,8 @@ class _NewTicketScreenState extends State<NewTicketScreen> {
   }
 }
 
-@RoutePage()
 class TicketOptionsScreen extends StatelessWidget {
-  const TicketOptionsScreen({
-    super.key,
-    @PathParam(Params.ticketId) required this.ticketId,
-  });
+  const TicketOptionsScreen({super.key, required this.ticketId});
 
   final String ticketId;
 

@@ -10,9 +10,9 @@
 
 Layout widgets that morph between phone and tablet / desktop forms. On a phone, the detail pane slides over the list and covers the bottom nav; on a wide window, the two panes sit side by side with a draggable divider. When the user resizes a desktop window across the breakpoint, the panes rearrange — and the widgets inside them keep their state. A half-typed message survives the resize, because the detail is moved in the tree, not rebuilt.
 
-Two widgets carry the package today: `ListDetailLayout` (list + selected detail, the messaging-app shape) and `AdaptiveSplit` (two always-present panes, the player shape). Every layout that joins them follows the same rules: router-agnostic, state-management-agnostic, and a plain `ChangeNotifier` controller as the whole integration surface.
+Three layouts carry the package today: `ListDetailLayout` (list + selected detail, the messaging-app shape), `AdaptiveSplit` (two always-present panes, the player shape), and `showAdaptiveModal` (a real Material dialog on wide windows that is a real Material bottom sheet on narrow ones). Every layout that joins them follows the same rules: router-agnostic, state-management-agnostic, and the smallest possible integration surface — a plain `ChangeNotifier` controller, or just an awaited future.
 
-> **The guarantee that makes this package exist:** pane widget *instances* survive the compact ↔ expanded morph. The standard adaptive components (Compose's `ListDetailPaneScaffold`, route-based detail pages) rebuild the detail from saved state instead — cursor position, scroll offset, and in-flight animations reset. Here they don't.
+> **The guarantee that makes this package exist:** pane and modal content *instances* survive the compact ↔ expanded morph. The standard adaptive components (Compose's `ListDetailPaneScaffold`, route-based detail pages) rebuild the detail from saved state instead — cursor position, scroll offset, and in-flight animations reset. Here they don't.
 
 > **Status:** 0.x. The API can change between minor versions until `1.0.0` — pre-1.0, the minor is the breaking axis, so pin `^0.N.0` and read the changelog on minor bumps.
 
@@ -30,6 +30,7 @@ Two widgets carry the package today: `ListDetailLayout` (list + selected detail,
   - [Covering the bottom nav (overlay mode)](#covering-the-bottom-nav-overlay-mode)
   - [Sizing the panes](#sizing-the-panes)
   - [Two panes without a selection](#two-panes-without-a-selection)
+  - [A modal that swaps between dialog and bottom sheet](#a-modal-that-swaps-between-dialog-and-bottom-sheet)
   - [One breakpoint for the whole app](#one-breakpoint-for-the-whole-app)
 - [Why widget-level morphing](#why-widget-level-morphing)
 - [The example app](#the-example-app)
@@ -178,6 +179,23 @@ AdaptiveSplit(
 
 Wide: side by side with the same draggable divider (primary at the start or end via `primaryPosition`). Narrow: a vertical stack, or primary only. Both panes keep their state across the morph, same as the detail pane does.
 
+### A modal that swaps between dialog and bottom sheet
+
+`showAdaptiveModal` presents a real Material dialog on wide windows and a real Material bottom sheet on narrow ones — `DialogRoute` and `ModalBottomSheetRoute` underneath, so your `DialogTheme` / `BottomSheetTheme`, Material's drag physics, and back handling all apply. Resize across the breakpoint while it is open and the form swaps live, keeping the content widget's state — a half-typed form field survives.
+
+```dart
+final choice = await showAdaptiveModal<String>(
+  context: context,
+  config: const ModalConfig(showDragHandle: true),
+  builder: (context, mode) => SizedBox(
+    width: mode == ModalLayoutMode.dialog ? 420 : double.infinity,
+    child: NewTicketForm(),
+  ),
+);
+```
+
+The returned future completes with the pop result no matter how many form swaps happened while the modal was open. One contract: return the same root widget type for both modes (like the `SizedBox` above) — the content moves between the two routes under a stable key, and a changed root type would defeat the move.
+
 ### One breakpoint for the whole app
 
 Set it once above `MaterialApp`; every layout in the subtree inherits it. A widget's own `expandedBreakpoint` parameter still wins when you need a local exception; with neither, the default is 720.
@@ -206,6 +224,13 @@ This package keeps both layouts inside one widget instead. The detail mounts und
 <summary><b>🧩 How overlay mode survives tab navigation</b></summary>
 
 An `OverlayPortal` paints in the Overlay, outside its parent — so a parent that stops painting (an inactive `IndexedStack` child) cannot take its overlay down with it. The layout closes that hole by probing paint itself: a render object reports "I was painted this frame", and the layout checks the flag during the next layout pass. Not painted last frame means the tab is inactive, and the overlay child collapses to nothing. The portal itself is shown once and never toggled, which sidesteps `OverlayPortalController`'s restriction against show/hide during layout. The full contract, including the invariants to keep when editing this machinery, is in [`docs/UPDATING.md`](docs/UPDATING.md).
+
+</details>
+
+<details>
+<summary><b>🧩 Why the modal uses real Material routes</b></summary>
+
+The pane layouts own their navigation feel in exchange for the state guarantee. The modal gets both: each form is Flutter's own route (`DialogRoute`, `ModalBottomSheetRoute`), so theming, drag-to-dismiss physics, and back handling are Material's — and framework improvements arrive with Flutter upgrades. On a breakpoint crossing the active route is atomically replaced in a single frame, and since every route of a Navigator lives in one Overlay — one element tree — the keyed content reparents into the new route instead of rebuilding. A session object proxies the pop result across swaps, so the caller's awaited future never notices.
 
 </details>
 

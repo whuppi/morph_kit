@@ -24,6 +24,9 @@ export 'src/core/list_detail/list_detail_layout.dart';
 export 'src/core/list_detail/list_detail_controller.dart';
 export 'src/core/list_detail/detail_layout_mode.dart';
 export 'src/core/list_detail/compact_config.dart';
+export 'src/core/modal/adaptive_modal.dart';
+export 'src/core/modal/modal_config.dart';
+export 'src/core/modal/modal_layout_mode.dart';
 export 'src/core/split/adaptive_split.dart';
 
 // Core — shared configuration + vocabulary

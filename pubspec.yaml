@@ -2,8 +2,8 @@ name: adaptive_layouts
 version: 0.0.0
 description: >-
   Adaptive layout widgets that morph between phone and desktop forms —
-  list-detail, split panes, slide-over details, draggable anchored
-  dividers, and pane state that survives window resizes.
+  list-detail, split panes, dialog-to-bottom-sheet modals, and pane
+  state that survives window resizes.
 homepage: https://github.com/whuppi/adaptive_layouts
 repository: https://github.com/whuppi/adaptive_layouts
 issue_tracker: https://github.com/whuppi/adaptive_layouts/issues

@@ -192,5 +192,38 @@ void main() {
         startsWith('/work/tickets/ticket-'),
       );
     });
+
+    testWidgets('typed text survives the dialog ↔ sheet swap on resize', (
+      tester,
+    ) async {
+      await pumpApp(tester, size: expanded);
+
+      await tester.tap(find.text('New ticket'));
+      await tester.pumpAndSettle();
+      expect(find.byType(Dialog), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField).last, 'Half-typed title');
+
+      // Shrink across the breakpoint: the dialog route is atomically
+      // replaced by a real bottom sheet route — same content element.
+      await resize(tester, compact);
+      expect(find.byType(BottomSheet), findsOneWidget);
+      expect(find.byType(Dialog), findsNothing);
+      expect(find.text('Half-typed title'), findsOneWidget);
+
+      // Grow back: sheet becomes a dialog again, text still intact.
+      await resize(tester, expanded);
+      expect(find.byType(Dialog), findsOneWidget);
+      expect(find.text('Half-typed title'), findsOneWidget);
+
+      // The result future survived both swaps: create → navigates.
+      await tester.tap(find.text('Create ticket'));
+      await tester.pumpAndSettle();
+      expect(find.byType(TicketPane), findsOneWidget);
+      expect(
+        rootRouter(tester).currentPath,
+        startsWith('/work/tickets/ticket-'),
+      );
+    });
   });
 }

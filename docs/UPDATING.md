@@ -64,7 +64,28 @@ JUMPS to 1.0 (no re-animation) — the detail was already visible.
 
 ---
 
-## §3 — Adding a component (divider / empty state)
+## §3 — The modal swap invariants (DO NOT BREAK)
+
+`showAdaptiveModal` presents real Material routes (`DialogRoute`,
+`ModalBottomSheetRoute`) and replaces one with the other when the window
+crosses the breakpoint. The swap machinery in
+`src/core/modal/adaptive_modal.dart` holds three invariants:
+
+1. **The swap is one synchronous block: point `_active` at the new route →
+   `removeRoute(old)` → `push(new)`.** All three land in one frame — that is
+   what lets the `GlobalKey`'d content reparent instead of unmount, and what
+   keeps old and new content from coexisting (duplicate-key crash).
+2. **The identity guard decides what a route completion means.** A removed
+   route also completes its `popped` future (with null); only the completion
+   of the route that is still `_active` is the user dismissing the modal.
+   Reorder the swap so `_active` still points at the old route during
+   `removeRoute` and the caller's future completes with null mid-swap.
+3. **Swaps navigate post-frame, from live width.** The crossing is detected
+   during build (navigation is illegal there); by the time the callback runs
+   the width may have crossed back, so the target mode is re-derived — never
+   captured at schedule time.
+
+## §4 — Adding a component (divider / empty state)
 
 1. Create the file under `src/components/{dividers|empty_states}/`.
 2. Match the shared contract: dividers implement the `DividerBuilder`
@@ -77,7 +98,7 @@ JUMPS to 1.0 (no re-animation) — the detail was already visible.
    (idle / dragging / settling for dividers).
 6. Row in `CAPABILITY_ROADMAP.md`.
 
-## §4 — Adding a config field
+## §5 — Adding a config field
 
 1. Add the field to the right pure-data class (`PaneConfig`,
    `CompactConfig`) with a default that preserves current behavior.
@@ -91,7 +112,7 @@ JUMPS to 1.0 (no re-animation) — the detail was already visible.
    lie — this package once shipped `anchors` / `resizeMode` / `isSettling`
    unimplemented; they're real now. Don't regress the standard.
 
-## §5 — Adding a layout widget
+## §6 — Adding a layout widget
 
 1. New folder under `src/core/<name>/` (peer of `list_detail/`, `split/`).
 2. Reuse the shared vocabulary: `AdaptiveLayoutConfig.resolveBreakpoint`,
@@ -102,10 +123,12 @@ JUMPS to 1.0 (no re-animation) — the detail was already visible.
 4. Barrel export, mirrored test folder, roadmap rows, architecture tree
    update.
 
-## §6 — Changing the API surface
+## §7 — Changing the API surface
 
-Consumers use `path:` dependencies, so breaks surface instantly at their
-next analyze. After any signature change: run the check sequence here, then
+Pre-1.0, the minor version is the breaking axis — bump it for any breaking
+change and say so in the changelog. Workspace consumers use `path:`
+dependencies, so breaks surface at their next analyze. After any signature
+change: run the check sequence here, then
 `fvm flutter analyze` in each consuming app (the workspace grep for
 `adaptive_layouts` finds them). Update the example's usage in the same
 session — it is the reference consumers copy from.
