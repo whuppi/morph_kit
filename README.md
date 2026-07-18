@@ -136,6 +136,21 @@ Selecting pushes a genuine page route holding the detail; back is the route's ow
 
 One app-side note: every route push makes Flutter scan the shell for `Hero` tags, kept-alive tabs included. If several `FloatingActionButton`s coexist under one page (one per tab), give them explicit `heroTag`s — the shared default tag asserts on the first push.
 
+### Picking a compact detail mode
+
+All three modes keep the state guarantee across resizes. They differ in what the open detail covers and who owns the back gesture:
+
+| | `inline` | `overlay` | `route` |
+|---|---|---|---|
+| Covers bottom nav / tab bars | no | yes | yes — it's a page |
+| Dismiss gesture | swipe anywhere on the detail | swipe anywhere on the detail | the platform's own (predictive back on Android, edge swipe on iOS/macOS) |
+| Back animation | package slide | package slide | your `PageTransitionsTheme` |
+| Android predictive-back preview | lost (back is intercepted) | lost | full |
+| Page's snackbars / FABs while open | visible | hidden behind the detail | re-home into the detail's `Scaffold`, like normal navigation |
+| Hero discipline (`heroTag`s) | not needed | not needed | needed |
+
+Rule of thumb: `inline` when the surrounding chrome should stay present, `overlay` for a full-screen feel without real navigation, `route` when the detail should behave like a native page and inherit every platform back-gesture convention as it evolves. The per-value doc comments on `CompactDetailMode` carry the full contracts.
+
 ### Sizing the panes
 
 `PaneConfig` is pure data; the divider visual is a builder you pick or write:
