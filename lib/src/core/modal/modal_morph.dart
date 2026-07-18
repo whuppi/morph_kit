@@ -102,9 +102,15 @@ class ModalMorphFlight {
     required this.contentBuilder,
     required VoidCallback onCompleted,
     required this.targetMode,
+    required double contentInsetStart,
+    required double contentInsetEnd,
+    required this.handleColor,
+    required this.handleSize,
   }) : _startRect = startRect,
        _start = start,
        _end = end,
+       _insetStart = contentInsetStart,
+       _insetEnd = contentInsetEnd,
        contentSize = ValueNotifier<Size>(startRect.size) {
     _controller =
         AnimationController(
@@ -128,6 +134,13 @@ class ModalMorphFlight {
 
   /// The form being flown toward. Updated on retarget.
   ModalLayoutMode targetMode;
+
+  /// Drag-handle replica visuals, resolved from the theme the way
+  /// `BottomSheet` resolves them.
+  final Color handleColor;
+
+  /// See [handleColor].
+  final Size handleSize;
 
   /// Marks the destination route's placeholder so its live rect can be
   /// tracked as the flight target.
@@ -157,6 +170,13 @@ class ModalMorphFlight {
   Rect _startRect;
   ModalFormVisuals _start;
   ModalFormVisuals _end;
+
+  /// Vertical space between the surface's top edge and the content — the
+  /// drag-handle band (`kMinInteractiveDimension`) when that endpoint is a
+  /// handle-showing sheet, 0 otherwise. The tracked rects are CONTENT
+  /// rects; the painted surface extends above them by the lerped inset.
+  double _insetStart;
+  double _insetEnd;
   Rect? _lastTargetRect;
   OverlayEntry? _entry;
 
@@ -181,9 +201,12 @@ class ModalMorphFlight {
   void retarget({
     required ModalFormVisuals end,
     required ModalLayoutMode mode,
+    required double contentInsetEnd,
   }) {
     _startRect = currentRect();
     _start = ModalFormVisuals.lerp(_start, _end, _t);
+    _insetStart = lerpDouble(_insetStart, _insetEnd, _t) ?? _insetEnd;
+    _insetEnd = contentInsetEnd;
     _end = end;
     targetMode = mode;
     _lastTargetRect = null;
@@ -220,29 +243,74 @@ class ModalMorphFlight {
       animation: _controller,
       builder: (context, _) {
         final rect = currentRect();
-        final visuals = ModalFormVisuals.lerp(_start, _end, _t);
+        final t = _t;
+        final visuals = ModalFormVisuals.lerp(_start, _end, t);
+        final inset = lerpDouble(_insetStart, _insetEnd, t) ?? _insetEnd;
+        // The tracked rect is the CONTENT rect; the surface extends above
+        // it by the handle band of whichever endpoint(s) have one.
+        final surfaceRect = Rect.fromLTRB(
+          rect.left,
+          rect.top - inset,
+          rect.right,
+          rect.bottom,
+        );
+        final handleOpacity = switch ((_insetStart > 0, _insetEnd > 0)) {
+          (true, true) => 1.0,
+          (false, true) => t,
+          (true, false) => 1.0 - t,
+          (false, false) => 0.0,
+        };
         return Stack(
           children: [
             Positioned.fromRect(
-              rect: rect,
+              rect: surfaceRect,
               child: IgnorePointer(
                 child: Material(
                   clipBehavior: Clip.antiAlias,
                   shape: visuals.shape,
                   color: visuals.color,
                   elevation: visuals.elevation,
-                  child: OverflowBox(
+                  child: Stack(
                     alignment: Alignment.topCenter,
-                    minWidth: 0,
-                    maxWidth: _destinationMaxWidth ?? rect.width,
-                    minHeight: 0,
-                    maxHeight: maxHeight,
-                    child: _MeasureSize(
-                      onSize: (size) {
-                        if (contentSize.value != size) contentSize.value = size;
-                      },
-                      child: contentBuilder(context),
-                    ),
+                    children: [
+                      Padding(
+                        padding: EdgeInsets.only(top: inset),
+                        child: OverflowBox(
+                          alignment: Alignment.topCenter,
+                          minWidth: 0,
+                          maxWidth: _destinationMaxWidth ?? rect.width,
+                          minHeight: 0,
+                          maxHeight: maxHeight,
+                          child: _MeasureSize(
+                            onSize: (size) {
+                              if (contentSize.value != size) {
+                                contentSize.value = size;
+                              }
+                            },
+                            child: contentBuilder(context),
+                          ),
+                        ),
+                      ),
+                      if (handleOpacity > 0)
+                        Opacity(
+                          opacity: handleOpacity,
+                          child: SizedBox(
+                            height: kMinInteractiveDimension,
+                            child: Center(
+                              child: Container(
+                                width: handleSize.width,
+                                height: handleSize.height,
+                                decoration: BoxDecoration(
+                                  color: handleColor,
+                                  borderRadius: BorderRadius.circular(
+                                    handleSize.height / 2,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ),

@@ -164,6 +164,76 @@ void main() {
     expect(sheet.clipBehavior, Clip.antiAlias);
   });
 
+  testWidgets('the destination is a ghost until the flight becomes it', (
+    tester,
+  ) async {
+    await pumpApp(
+      tester,
+      _opener(config: const ModalConfig(showDragHandle: true)),
+      size: const Size(1000, 800),
+    );
+    await _open(tester);
+
+    await _resizeIntoFlight(tester, const Size(500, 800));
+
+    // Mid-flight the sheet route exists for layout and barrier, but shows
+    // nothing: transparent surface, no elevation, no handle.
+    final ghostSheet = tester.widget<BottomSheet>(find.byType(BottomSheet));
+    expect(ghostSheet.backgroundColor, Colors.transparent);
+    expect(ghostSheet.elevation, 0);
+    expect(ghostSheet.showDragHandle, isFalse);
+
+    // Landing replaces the ghost with the normally-chromed route.
+    await tester.pumpAndSettle();
+    final realSheet = tester.widget<BottomSheet>(find.byType(BottomSheet));
+    expect(realSheet.backgroundColor, isNot(Colors.transparent));
+    expect(realSheet.showDragHandle, isTrue);
+    expect(_contentIsInsideSheet(tester), isTrue);
+  });
+
+  testWidgets('outbound dialog is a ghost too', (tester) async {
+    await pumpApp(tester, _opener(), size: const Size(500, 800));
+    await _open(tester);
+
+    await _resizeIntoFlight(tester, const Size(1000, 800));
+    final ghostDialog = tester.widget<Dialog>(find.byType(Dialog));
+    expect(ghostDialog.backgroundColor, Colors.transparent);
+    expect(ghostDialog.elevation, 0);
+
+    await tester.pumpAndSettle();
+    final realDialog = tester.widget<Dialog>(find.byType(Dialog));
+    expect(realDialog.backgroundColor, isNull);
+    expect(find.text('count: 0'), findsOneWidget);
+  });
+
+  testWidgets('landing under a drag handle does not jump', (tester) async {
+    await pumpApp(
+      tester,
+      _opener(config: const ModalConfig(showDragHandle: true)),
+      size: const Size(1000, 800),
+    );
+    await _open(tester);
+
+    tester.view.physicalSize = const Size(500, 800);
+    await tester.pump();
+    await tester.pump();
+    for (var i = 0; i < 5; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await tester.pump(const Duration(milliseconds: 250));
+    final flightEnd = tester.getRect(find.byType(CounterPane));
+
+    await tester.pumpAndSettle();
+    final landed = tester.getRect(find.byType(CounterPane));
+
+    // The ghost's placeholder spacer stands in for the handle band, so
+    // the content lands exactly where the flight left it — a wrong spacer
+    // metric shows up here as a ~48px vertical jump.
+    expect(landed.top, closeTo(flightEnd.top, 2));
+    expect(landed.left, closeTo(flightEnd.left, 2));
+    expect(landed.width, closeTo(flightEnd.width, 2));
+  });
+
   testWidgets('flight surface morphs geometry between the forms', (
     tester,
   ) async {

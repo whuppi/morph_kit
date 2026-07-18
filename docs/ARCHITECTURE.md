@@ -98,15 +98,21 @@ changes happened. `ModalConfig` mostly forwards parameters to the two routes.
 
 By default the swap plays a **container transform** (Material's own name for
 the pattern): during the swap the live content mounts in a flight — an
-overlay entry above the routes — whose surface lerps rect, shape, color, and
-elevation from the outgoing form's geometry to the destination's. The
-destination route lays out a same-size placeholder whose LIVE rect is the
-flight's landing target, tracked every frame. The sizing handshake sends
-one quantity each way: the placeholder reports the width its slot OFFERS,
-the flight lays the content out at that width and reports the resulting
-size back — so the destination reaches its true final geometry within a few
-frames and the handoff is pixel-clean. Both resting forms clip
-(`Clip.antiAlias`) to match the flight's clipped surface. Dismissal mid-flight lands the content
+overlay entry above the routes — whose surface lerps rect, shape, color,
+elevation, and the drag-handle band from the outgoing form's geometry to the
+destination's. The destination is pushed as a **ghost**: real barrier, real
+layout machinery, zero visible chrome (transparent sheet without handle or
+drag; the dialog form's chrome is zeroed reactively). Nothing of the
+destination shows before the flight has become it — at landing, a
+same-frame swap restores the real chrome exactly under the flight's
+identical final frame. The ghost lays out a same-size placeholder (plus a
+`kMinInteractiveDimension` spacer standing in for the drag-handle band)
+whose LIVE rect is the flight's landing target, tracked every frame. The
+sizing handshake sends one quantity each way: the placeholder reports the
+width its slot OFFERS, the flight lays the content out at that width and
+reports the resulting size back — so the target is the true final geometry
+and the handoff is pixel-clean. Both resting forms clip (`Clip.antiAlias`)
+to match the flight's clipped surface. Dismissal mid-flight lands the content
 into the exiting route immediately; a second breakpoint crossing retargets
 the flight from its current visual state. `ModalConfig(morph: false)`
 restores the instant cut.

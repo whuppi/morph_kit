@@ -96,6 +96,10 @@ class _ModalSession<T> {
 
   Route<T?>? _active;
   ModalLayoutMode? _activeMode;
+
+  /// True while the active sheet route is the chrome-less ghost a flight
+  /// lands on; the landing replaces it with a normally-chromed route.
+  bool _activeIsGhost = false;
   bool _swapScheduled = false;
 
   /// The in-flight container transform, when a swap is morphing.
@@ -122,10 +126,12 @@ class _ModalSession<T> {
     ModalLayoutMode mode, {
     required bool animate,
     Route<T?>? removeFirst,
+    bool ghost = false,
   }) {
-    final route = _buildRoute(mode, animate: animate);
+    final route = _buildRoute(mode, animate: animate, ghost: ghost);
     _active = route;
     _activeMode = mode;
+    _activeIsGhost = ghost && mode == ModalLayoutMode.sheet;
     unawaited(
       route.popped.then((value) {
         // Identity guard: a swapped-out route also completes (with null)
@@ -158,35 +164,53 @@ class _ModalSession<T> {
       // the frame the swap waited on.
       final target = _modeFor(MediaQuery.sizeOf(navigator.context).width);
       if (target == _activeMode) return;
-      if (config.morph) _beginOrRetargetFlight(target);
-      _push(target, animate: false, removeFirst: active);
+      final morphing = config.morph && _beginOrRetargetFlight(target);
+      _push(target, animate: false, removeFirst: active, ghost: morphing);
     });
   }
+
+  /// The drag-handle decision for the REAL sheet route, mirroring
+  /// `BottomSheet`'s own resolution so ghost spacing and flight replica
+  /// match what lands.
+  bool _effectiveShowDragHandle(ThemeData theme) =>
+      config.showDragHandle ??
+      (config.enableDrag && (theme.bottomSheetTheme.showDragHandle ?? false));
+
+  /// The vertical offset between a form's surface and its content: the
+  /// drag-handle band for a handle-showing sheet, 0 otherwise.
+  double _contentInsetFor(ModalLayoutMode mode, ThemeData theme) =>
+      mode == ModalLayoutMode.sheet && _effectiveShowDragHandle(theme)
+      ? kMinInteractiveDimension
+      : 0;
 
   /// Launches the container transform for a swap toward [target] — or, if
   /// a flight is already in the air (the window crossed back mid-morph),
   /// redirects it from its current visual state. Runs BEFORE the route
   /// swap while `_activeMode` is still the outgoing form and the content
   /// (in the outgoing route or the existing flight) is still measurable.
-  /// Bails silently to the instant cut when geometry can't be measured.
-  void _beginOrRetargetFlight(ModalLayoutMode target) {
+  /// Returns whether a flight is airborne; false bails to the instant cut.
+  bool _beginOrRetargetFlight(ModalLayoutMode target) {
     final overlay = navigator.overlay;
-    if (overlay == null) return;
+    if (overlay == null) return false;
     final theme = Theme.of(navigator.context);
     final end = ModalFormVisuals.of(theme, target);
 
     final flight = _flight;
     if (flight != null) {
-      flight.retarget(end: end, mode: target);
-      return;
+      flight.retarget(
+        end: end,
+        mode: target,
+        contentInsetEnd: _contentInsetFor(target, theme),
+      );
+      return true;
     }
 
     final outgoingMode = _activeMode;
     final box = _contentKey.currentContext?.findRenderObject();
     final overlayBox = overlay.context.findRenderObject();
-    if (outgoingMode == null) return;
-    if (box is! RenderBox || overlayBox is! RenderBox) return;
-    if (!box.attached || !box.hasSize) return;
+    if (outgoingMode == null) return false;
+    if (box is! RenderBox || overlayBox is! RenderBox) return false;
+    if (!box.attached || !box.hasSize) return false;
     final startRect =
         box.localToGlobal(Offset.zero, ancestor: overlayBox) & box.size;
 
@@ -198,6 +222,12 @@ class _ModalSession<T> {
       duration: config.morphDuration,
       curve: config.morphCurve,
       targetMode: target,
+      contentInsetStart: _contentInsetFor(outgoingMode, theme),
+      contentInsetEnd: _contentInsetFor(target, theme),
+      handleColor:
+          theme.bottomSheetTheme.dragHandleColor ??
+          theme.colorScheme.onSurfaceVariant,
+      handleSize: theme.bottomSheetTheme.dragHandleSize ?? const Size(32, 4),
       // The Builder sits ABOVE the key: the subtree from the keyed node
       // down must be identical in every host (routes and flight), or the
       // reparent degrades into a rebuild and state dies.
@@ -220,26 +250,38 @@ class _ModalSession<T> {
       onCompleted: () {
         final flight = _flight;
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (identical(flight, _flight)) _endFlight();
+          if (identical(flight, _flight)) _endFlight(landed: true);
         });
       },
     );
     _morphing.value = true;
     _flight!.insert();
+    return true;
   }
 
   /// Hands the content from the flight into the active route's slot and
   /// tears the flight down — all in one synchronous block, so the element
-  /// moves in a single frame.
-  void _endFlight() {
+  /// moves in a single frame. A [landed] flight over a ghost sheet also
+  /// replaces the ghost with the normally-chromed route in that same
+  /// block, so the real chrome appears exactly under the flight's final,
+  /// identical-looking frame.
+  void _endFlight({bool landed = false}) {
     final flight = _flight;
     if (flight == null) return;
+    if (landed && _activeIsGhost) {
+      final ghost = _active;
+      _push(ModalLayoutMode.sheet, animate: false, removeFirst: ghost);
+    }
     _morphing.value = false;
     _flight = null;
     flight.dispose();
   }
 
-  Route<T?> _buildRoute(ModalLayoutMode mode, {required bool animate}) {
+  Route<T?> _buildRoute(
+    ModalLayoutMode mode, {
+    required bool animate,
+    bool ghost = false,
+  }) {
     // Swap pushes skip the entrance animation (the modal is already
     // visually present); exits keep Material's timing either way.
     final style = animate ? null : AnimationStyle(duration: Duration.zero);
@@ -256,14 +298,21 @@ class _ModalSession<T> {
           animationStyle: style,
         );
       case ModalLayoutMode.sheet:
+        // The ghost variant a flight lands on: chrome-less (transparent
+        // surface, no handle, no drag) but with the REAL barrier and the
+        // real layout machinery, so scrim continuity and target tracking
+        // hold while nothing of the destination is visible before the
+        // flight becomes it.
         return ModalBottomSheetRoute<T>(
           builder: (context) => _ModalScope<T>(session: this, mode: mode),
           capturedThemes: themes,
           isScrollControlled: config.isScrollControlled,
           modalBarrierColor: config.barrierColor,
           isDismissible: config.barrierDismissible,
-          enableDrag: config.enableDrag,
-          showDragHandle: config.showDragHandle,
+          enableDrag: ghost ? false : config.enableDrag,
+          showDragHandle: ghost ? false : config.showDragHandle,
+          backgroundColor: ghost ? Colors.transparent : null,
+          elevation: ghost ? 0 : null,
           clipBehavior: Clip.antiAlias,
           settings: settings,
           sheetAnimationStyle: style,
@@ -289,36 +338,59 @@ class _ModalScope<T> extends StatelessWidget {
     // While a flight holds the content, the route lays out a same-size
     // placeholder instead — its live rect is the flight's landing target,
     // and only one holder of the content key exists per frame.
-    final content = ValueListenableBuilder<bool>(
+    return ValueListenableBuilder<bool>(
       valueListenable: session._morphing,
       builder: (context, morphing, _) {
         final flight = session._flight;
-        if (morphing && flight != null) {
+        final ghosting = morphing && flight != null;
+        final Widget content;
+        if (ghosting) {
           // The LayoutBuilder reports the width this slot OFFERS, so the
           // flight can lay the content out at its true final width — the
-          // placeholder then mirrors the resulting size back.
-          return LayoutBuilder(
+          // placeholder then mirrors the resulting size back. The spacer
+          // stands in for the drag-handle band the ghost route omits, so
+          // the placeholder sits exactly where the content will land.
+          final inset = session._contentInsetFor(mode, Theme.of(context));
+          content = LayoutBuilder(
             builder: (context, constraints) {
               flight.reportDestinationMaxWidth(constraints.maxWidth);
-              return ValueListenableBuilder<Size>(
+              final placeholder = ValueListenableBuilder<Size>(
                 valueListenable: flight.contentSize,
                 builder: (context, size, _) =>
                     SizedBox.fromSize(key: flight.placeholderKey, size: size),
               );
+              if (inset == 0) return placeholder;
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(height: inset),
+                  placeholder,
+                ],
+              );
             },
           );
+        } else {
+          content = KeyedSubtree(
+            key: session._contentKey,
+            child: session.builder(context, mode),
+          );
         }
-        return KeyedSubtree(
-          key: session._contentKey,
-          child: session.builder(context, mode),
-        );
+        if (mode != ModalLayoutMode.dialog) return content;
+        // antiAlias (not Material's default Clip.none) so corner rendering
+        // at rest matches the flight's clipped surface — content painting
+        // near the corners would otherwise pop square at the handoff. The
+        // ghost variant is fully invisible: the flight IS the dialog until
+        // landing, when this same widget rebuilds with real chrome.
+        return ghosting
+            ? Dialog(
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                shadowColor: Colors.transparent,
+                clipBehavior: Clip.antiAlias,
+                child: content,
+              )
+            : Dialog(clipBehavior: Clip.antiAlias, child: content);
       },
     );
-    // antiAlias (not Material's default Clip.none) so corner rendering at
-    // rest matches the flight's clipped surface — content painting near
-    // the corners would otherwise pop square at the handoff.
-    return mode == ModalLayoutMode.dialog
-        ? Dialog(clipBehavior: Clip.antiAlias, child: content)
-        : content;
   }
 }

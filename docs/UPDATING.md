@@ -110,6 +110,22 @@ With the container transform (`ModalConfig.morph`, default on), three more:
    both resting forms pass `Clip.antiAlias` so corner rendering matches
    the flight's clipped surface; reverting to Material's default
    `Clip.none` makes content near the corners pop square at handoff.
+8. **The destination stays a ghost until the flight becomes it.** During a
+   morph the sheet is pushed chrome-less (transparent surface, no handle,
+   no drag — but the REAL barrier, for scrim continuity) and the dialog
+   form zeroes its chrome reactively. Landing on a ghost sheet does a
+   same-frame swap to the normally-chromed route; the reveal is invisible
+   because the flight's final frame is pixel-identical to the real chrome.
+   Pushing a visible destination brings back the "fully-formed empty sheet
+   waiting for its content" artifact.
+9. **The handle band is `kMinInteractiveDimension`, imported — plus one
+   structural replica.** The ghost's placeholder spacer and the flight's
+   surface inset both use the SAME constant `BottomSheet` uses for its
+   content padding, so the metric cannot drift; the handle's look
+   (`dragHandleSize ?? theme ?? Size(32, 4)`, radius h/2, color
+   `dragHandleColor ?? theme ?? onSurfaceVariant`) is replicated from the
+   SDK source and pinned by the landing-parity test — if a Flutter upgrade
+   moves it, that test fails loudly.
 
 ## §4 — Adding a component (divider / empty state)
 
