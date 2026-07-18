@@ -10,7 +10,7 @@
 
 Layout widgets that morph between phone and tablet / desktop forms. On a phone, the detail pane slides over the list and covers the bottom nav; on a wide window, the two panes sit side by side with a draggable divider. When the user resizes a desktop window across the breakpoint, the panes rearrange — and the widgets inside them keep their state. A half-typed message survives the resize, because the detail is moved in the tree, not rebuilt.
 
-Two widgets carry the package: `ListDetailLayout` (list + selected detail, the messaging-app shape) and `AdaptiveSplit` (two always-present panes, the player shape). Both are router-agnostic and state-management-agnostic — a plain `ChangeNotifier` controller is the whole integration surface.
+Two widgets carry the package today: `ListDetailLayout` (list + selected detail, the messaging-app shape) and `AdaptiveSplit` (two always-present panes, the player shape). Every layout that joins them follows the same rules: router-agnostic, state-management-agnostic, and a plain `ChangeNotifier` controller as the whole integration surface.
 
 > **The guarantee that makes this package exist:** pane widget *instances* survive the compact ↔ expanded morph. The standard adaptive components (Compose's `ListDetailPaneScaffold`, route-based detail pages) rebuild the detail from saved state instead — cursor position, scroll offset, and in-flight animations reset. Here they don't.
 

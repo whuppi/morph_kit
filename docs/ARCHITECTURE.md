@@ -5,8 +5,9 @@
 
 Adaptive layout widgets that morph between compact (mobile) and expanded
 (tablet / desktop) form factors — preserving pane widget state across the
-morph. Router-agnostic, state-management-agnostic. Consumed by apps via
-`path:` dependency; the runnable integration reference is
+morph. Router-agnostic, state-management-agnostic. The package is a growing
+family — each layout lives in its own `src/core/` subtree on shared
+vocabulary (`src/core/shared/`). The runnable integration reference is
 [`example/`](../example/) (a full multi-domain app with nested tab routers,
 URL sync, and modals).
 
