@@ -234,6 +234,25 @@ void main() {
     expect(landed.width, closeTo(flightEnd.width, 2));
   });
 
+  testWidgets('content reflows with the container — no destination-width '
+      'chop', (tester) async {
+    await pumpApp(tester, _opener(), size: const Size(1000, 800));
+    await _open(tester);
+    final dialogWidth = tester.getRect(find.byType(CounterPane)).width;
+
+    await _resizeIntoFlight(tester, const Size(500, 800));
+
+    // Mid-flight the content is laid at the container's lerped width —
+    // strictly between the two forms. Jumping straight to the sheet's
+    // width would mean the narrower container is cropping it.
+    final midWidth = tester.getRect(find.byType(CounterPane)).width;
+    expect(midWidth, greaterThan(dialogWidth));
+    expect(midWidth, lessThan(500));
+
+    await tester.pumpAndSettle();
+    expect(tester.getRect(find.byType(CounterPane)).width, 500);
+  });
+
   testWidgets('flight surface morphs geometry between the forms', (
     tester,
   ) async {

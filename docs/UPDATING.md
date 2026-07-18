@@ -101,15 +101,21 @@ With the container transform (`ModalConfig.morph`, default on), three more:
    shows the content during its exit animation and the flight's ticker is
    disposed. Completing the result while a flight is airborne leaks the
    ticker and pops an empty route.
-7. **The width handshake flows one quantity each way.** The placeholder
-   reports the width its slot OFFERS (`reportDestinationMaxWidth`); the
-   flight lays the content out at that width and reports the SIZE back.
-   Laying the content out at the lerped container width instead is
-   circular, and the circle's fixed point is wrong — the sheet wraps to
-   the outgoing dialog's width, then snaps wide after landing. Related:
-   both resting forms pass `Clip.antiAlias` so corner rendering matches
-   the flight's clipped surface; reverting to Material's default
-   `Clip.none` makes content near the corners pop square at handoff.
+7. **Content lays at the container's lerped width; placeholder width is
+   per-form convention.** The content reflows WITH the morph — laying it
+   at the destination width makes the narrower container visibly crop it
+   mid-flight. The width circularity that reflow would otherwise cause
+   (placeholder width from content width from container width) is broken
+   by convention instead of measurement: the ghost sheet's placeholder is
+   `width: double.infinity` (sheets are full-bleed; the slot decides),
+   the dialog's placeholder takes the content's measured width (dialogs
+   wrap their content). Only the HEIGHT flows from the flight's
+   measurement. Content that defies its form's convention (fixed-width
+   sheet content, full-bleed dialog content) lands with a width settle —
+   accepted trade. Related: both resting forms pass `Clip.antiAlias` so
+   corner rendering matches the flight's clipped surface; reverting to
+   Material's default `Clip.none` makes content near the corners pop
+   square at handoff.
 8. **The destination stays a ghost until the flight becomes it.** During a
    morph the sheet is pushed chrome-less (transparent surface, no handle,
    no drag — but the REAL barrier, for scrim continuity) and the dialog

@@ -345,30 +345,33 @@ class _ModalScope<T> extends StatelessWidget {
         final ghosting = morphing && flight != null;
         final Widget content;
         if (ghosting) {
-          // The LayoutBuilder reports the width this slot OFFERS, so the
-          // flight can lay the content out at its true final width — the
-          // placeholder then mirrors the resulting size back. The spacer
-          // stands in for the drag-handle band the ghost route omits, so
-          // the placeholder sits exactly where the content will land.
+          // Placeholder width follows each form's convention — the slot
+          // decides for full-bleed sheets, the content decides for
+          // dialogs — so the landing target is width-correct from the
+          // first frame; only the height flows from the flight's
+          // measurement. The spacer stands in for the drag-handle band
+          // the ghost route omits, so the placeholder sits exactly where
+          // the content will land.
           final inset = session._contentInsetFor(mode, Theme.of(context));
-          content = LayoutBuilder(
-            builder: (context, constraints) {
-              flight.reportDestinationMaxWidth(constraints.maxWidth);
-              final placeholder = ValueListenableBuilder<Size>(
-                valueListenable: flight.contentSize,
-                builder: (context, size, _) =>
-                    SizedBox.fromSize(key: flight.placeholderKey, size: size),
-              );
-              if (inset == 0) return placeholder;
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(height: inset),
-                  placeholder,
-                ],
-              );
-            },
+          final placeholder = ValueListenableBuilder<Size>(
+            valueListenable: flight.contentSize,
+            builder: (context, size, _) => mode == ModalLayoutMode.sheet
+                ? SizedBox(
+                    key: flight.placeholderKey,
+                    width: double.infinity,
+                    height: size.height,
+                  )
+                : SizedBox.fromSize(key: flight.placeholderKey, size: size),
           );
+          content = inset == 0
+              ? placeholder
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(height: inset),
+                    placeholder,
+                  ],
+                );
         } else {
           content = KeyedSubtree(
             key: session._contentKey,
