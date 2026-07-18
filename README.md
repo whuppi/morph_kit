@@ -132,7 +132,9 @@ ListDetailLayout<String>(
 )
 ```
 
-Selecting pushes a genuine page route holding the detail; back is the route's own (no interception). Resize across the breakpoint and the same detail element reparents between the route and the side-by-side pane — the state guarantee holds through real navigation. Hidden kept-alive tabs remove their route (keeping the selection) and restore it instantly when shown again.
+Selecting pushes a genuine page route holding the detail; back is the route's own (no interception). Resize across the breakpoint and the same detail element reparents between the route and the side-by-side pane — the state guarantee holds through real navigation. Hidden kept-alive tabs remove their route (keeping the selection and the detail's state) and restore it instantly when shown again — including when the breakpoint crossing itself happens while the tab is hidden.
+
+One app-side note: every route push makes Flutter scan the shell for `Hero` tags, kept-alive tabs included. If several `FloatingActionButton`s coexist under one page (one per tab), give them explicit `heroTag`s — the shared default tag asserts on the first push.
 
 ### Sizing the panes
 

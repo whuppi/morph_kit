@@ -1711,6 +1711,9 @@ class DemoListPane extends StatelessWidget {
           ),
           floatingActionButton: !isExpandedLayout && onNew != null
               ? FloatingActionButton(
+                  // Several list panels coexist in kept-alive tabs; default
+                  // FAB hero tags collide the moment any route pushes.
+                  heroTag: null,
                   onPressed: onNew,
                   child: const Icon(Icons.add),
                 )

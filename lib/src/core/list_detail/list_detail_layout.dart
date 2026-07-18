@@ -290,6 +290,13 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
   bool _wasExpandedForBridge = false;
   bool _routePaintCheckArmed = false;
 
+  /// True between a route-mode build (which ran `evaluate()`) and the
+  /// sync that consumes it. In such a frame `paintedThisFrame` is the
+  /// authoritative visibility signal; the notifier can be a stale TRUE
+  /// when the widget sat in a keep-alive bucket where paint stopped but
+  /// no build ever ran `evaluate()` to correct it (TabBarView tabs).
+  bool _routeFrameEvaluated = false;
+
   // ===========================================================================
   // LIFECYCLE
   // ===========================================================================
@@ -378,9 +385,39 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
       );
     }
 
-    if (widget.compactDetailMode != oldWidget.compactDetailMode &&
-        oldWidget.compactDetailMode == CompactDetailMode.route) {
-      _teardownDetailRoute();
+    if (widget.compactDetailMode != oldWidget.compactDetailMode) {
+      // Mode flips happen on LIVE layouts (a settings screen, a debug
+      // toggle). Every per-mode wiring initState does must be mirrored
+      // here or the new mode runs with dead machinery.
+      if (oldWidget.compactDetailMode == CompactDetailMode.route) {
+        _paintVisibility.notifier.removeListener(_scheduleRouteSync);
+        _teardownDetailRoute();
+        _bridgeDetail = false;
+        _instantRoutePush = false;
+      }
+      // Leaving overlay mode needs no teardown: the OverlayPortal only
+      // exists inside the overlay build branch, so it leaves the tree
+      // with the mode.
+      if (widget.compactDetailMode == CompactDetailMode.route) {
+        // Same wiring as a route-mode initState: the paint-probe listener
+        // IS the re-show chain — without it a repaint never wakes the
+        // reconciler and an open detail rests inline forever. An open
+        // selection starts bridged until the instant push claims it.
+        _bridgeDetail = _controller.hasSelection;
+        _instantRoutePush = _controller.hasSelection;
+        _paintVisibility.notifier.addListener(_scheduleRouteSync);
+      }
+      if (widget.compactDetailMode == CompactDetailMode.overlay) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _useOverlay) _overlay.show();
+        });
+      }
+      // Entering the slide-driven modes (inline / overlay) with a
+      // selection already open: the detail is a settled fact, not an
+      // entrance — snap the slide to match.
+      if (widget.compactDetailMode != CompactDetailMode.route) {
+        _slideController.value = _controller.hasSelection ? 1.0 : 0.0;
+      }
     }
   }
 
@@ -392,7 +429,9 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
 
   @override
   void dispose() {
-    if (_useRoute) _paintVisibility.notifier.removeListener(_scheduleRouteSync);
+    // Unconditional: the listener may have been wired by a live mode flip
+    // rather than initState; removing an unattached listener is a no-op.
+    _paintVisibility.notifier.removeListener(_scheduleRouteSync);
     _teardownDetailRoute();
     _controller.removeListener(_onControllerChanged);
     _ownedController?.dispose();
@@ -503,9 +542,14 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
     _routePaintCheckArmed = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _routePaintCheckArmed = false;
-      if (!mounted || _detailRoute == null) return;
+      if (!mounted) return;
       if (!_paintVisibility.paintedThisFrame &&
           _paintVisibility.notifier.value) {
+        // Built but not painted: the notifier is stale-true (paint can
+        // stop without a build running evaluate() — keep-alive buckets).
+        // Correcting it here is what re-arms the paint probe's deferred
+        // "paint resumed" signal; a stuck-true notifier never fires it
+        // and the re-show sync would never be woken.
         _paintVisibility.notifier.value = false;
         _scheduleRouteSync();
       }
@@ -528,11 +572,17 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
   /// Reconciles the pushed route with the desired state — the ONLY place
   /// route-mode navigation happens, always post-frame, never during build.
   void _syncDetailRoute() {
-    // paintedThisFrame covers the frame where paint just resumed: the
-    // notifier only flips true a deferred callback later, and waiting for
-    // it costs extra frames of the inline bridge on screen.
-    final painted =
-        _paintVisibility.notifier.value || _paintVisibility.paintedThisFrame;
+    // When this frame's build ran evaluate(), paintedThisFrame is ground
+    // truth — fresh in both directions: it covers the frame where paint
+    // just resumed (the notifier flips true a deferred callback later)
+    // AND it vetoes a stale-true notifier for a layout whose paint
+    // stopped without any build noticing (keep-alive tab buckets). Only
+    // syncs woken by the notifier itself, in a frame with no build, fall
+    // back to the notifier.
+    final painted = _routeFrameEvaluated
+        ? _paintVisibility.paintedThisFrame
+        : _paintVisibility.notifier.value;
+    _routeFrameEvaluated = false;
     final wantRoute = !_isExpanded && _controller.hasSelection && painted;
     final route = _detailRoute;
 
@@ -547,8 +597,11 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
     } else if (!wantRoute && route != null) {
       if (!_isExpanded && !painted && _controller.hasSelection) {
         // Tab hidden under the route (URL navigation): remove instantly,
-        // KEEP the selection, re-push instantly when painted again.
+        // KEEP the selection, re-push instantly when painted again. The
+        // bridge takes the detail key in the same frame the route dies —
+        // without a holder the element unmounts and the state is gone.
         _instantRoutePush = true;
+        _bridgeDetail = true;
         _removeDetailRoute(route);
       } else if (_isExpanded) {
         // Resize into expanded: the pane claims the key in the same
@@ -815,11 +868,13 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
 
         if (_useRoute) {
           _paintVisibility.evaluate();
+          _routeFrameEvaluated = true;
           // One-shot: after THIS frame's paint, verify the layout actually
-          // painted. A build pass that ends unpainted means the tab was
-          // hidden under the route (URL navigation) — suppress it. Armed
-          // only by build passes, so clean idle frames never false-trigger.
-          if (_detailRoute != null) _armRoutePaintCheck();
+          // painted. A build pass that ends unpainted means the layout is
+          // hidden (under the route, or in a keep-alive tab) — suppress
+          // the route and correct the stale-true notifier. Armed only by
+          // build passes, so clean idle frames never false-trigger.
+          _armRoutePaintCheck();
           if (isExpanded) {
             _bridgeDetail = false;
           } else if (_wasExpandedForBridge && _controller.hasSelection) {

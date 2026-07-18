@@ -175,20 +175,47 @@ The machinery in `list_detail_layout.dart` holds:
 5. **The route stays non-opaque.** The paint probe below detects "tab
    hidden under the route"; an opaque route blinds the probe AND
    un-paints the very layout that owns the route — a suppression loop.
-6. **Suppression is a build-armed one-shot.** `evaluate()` (layout) resets
-   the paint flag; the post-frame check PEEKS `paintedThisFrame` only
-   after a frame whose build armed it — clean idle frames (where paint
-   legitimately skips undirtied layers) can never false-trigger. The
-   check never resets the flag; `evaluate` owns the reset.
-7. **The re-show chain schedules its own frame and trusts same-frame
-   paint.** `_scheduleRouteSync` calls `ensureVisualUpdate()` — the
-   paint-probe listener fires inside another frame's post-frame flush,
-   where a queued callback waits for a frame nothing else schedules; an
-   idle device stalls forever showing the inline bridge. And the sync
-   reads `notifier.value || paintedThisFrame`: the notifier flips true
-   one deferred callback late, so the flag is what lets the route push
-   in the very flush where paint resumed (repro: resize to compact while
-   the tab is hidden, then return to the tab).
+6. **Suppression is a build-armed one-shot, and it corrects the stale
+   probe.** `evaluate()` (layout) resets the paint flag; the post-frame
+   check PEEKS `paintedThisFrame` only after a frame whose build armed
+   it — clean idle frames (where paint legitimately skips undirtied
+   layers) can never false-trigger. The check never resets the flag;
+   `evaluate` owns the reset. It runs on EVERY route-mode build (not
+   only routed ones): paint can stop without any build running
+   `evaluate()` (keep-alive tab buckets — TabBarView), leaving the
+   notifier stale-TRUE. A built-but-unpainted frame flips it false —
+   which is also what re-arms `_onPaint`'s deferred "paint resumed"
+   signal; a stuck-true notifier never fires it and the re-show would
+   never wake.
+7. **A push needs same-frame paint evidence; a suppressed detail is
+   re-homed in the bridge.** The sync reads `paintedThisFrame` when the
+   frame's build ran `evaluate()` (fresh both ways: pushes in the very
+   flush where paint resumed, AND vetoes the stale-true notifier that
+   once pushed a hidden tab's route over the visible screen), falling
+   back to the notifier only for listener-woken syncs in buildless
+   frames. `_scheduleRouteSync` calls `ensureVisualUpdate()` — the
+   listener fires inside another frame's post-frame flush, where a
+   queued callback otherwise waits for a frame an idle device never
+   schedules. And whenever the route is removed while the selection is
+   kept, `_bridgeDetail` is set in the same block: the bridge claims
+   the detail key the frame the route dies — a keyless frame unmounts
+   the element and destroys its state. (Repro for all three: open the
+   detail expanded, hide the tab, resize to compact, return.)
+8. **Route pushes run Hero scans over the whole shell.** Flutter scans
+   the from-route subtree — including kept-alive tab children — for
+   `Hero` tags on every push. Two `FloatingActionButton`s with default
+   hero tags anywhere under the shell assert and wreck the transition.
+   App-side rule (documented in the README): give FABs explicit
+   `heroTag`s (or `null`) when several coexist under one page.
+9. **`didUpdateWidget` mirrors initState's per-mode wiring.** Mode flips
+   happen on LIVE layouts (settings screens exist). Entering route mode
+   must attach the paint-probe listener — it IS the re-show chain; a
+   layout flipped into route mode without it looks fine until a tab
+   hide + return leaves the detail resting inline forever. Anything a
+   mode's initState wires, the flip must wire; anything it wires, the
+   flip away must unwind. The regression test pins this with a
+   paint-only re-show (children reused across the tab switch), because
+   a harness that rebuilds on tab switch masks a dead listener.
 
 ## §5 — Adding a component (divider / empty state)
 

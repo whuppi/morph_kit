@@ -229,6 +229,92 @@ void main() {
   });
 
   group('package settings', () {
+    testWidgets(
+      'route mode: expanded detail, leave via TOP TABS, shrink, return → routed',
+      (tester) async {
+        addTearDown(() {
+          PackageSettings.instance.update(
+            (s) => s.compactDetailMode = CompactDetailMode.overlay,
+          );
+        });
+        await pumpApp(tester, size: expanded);
+
+        // The mode is flipped on the RUNNING app via the ⚙ panel — live
+        // layouts must wire route mode in didUpdateWidget, not initState.
+        await tester.tap(find.byTooltip('Package settings'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('route'));
+        await tester.pumpAndSettle();
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Webhook drops events'));
+        await tester.pumpAndSettle();
+        expect(find.byType(TicketPane), findsOneWidget);
+        await tester.enterText(
+          find.descendant(
+            of: find.byType(TicketPane),
+            matching: find.byType(TextField),
+          ),
+          'draft comment',
+        );
+        await tester.pump();
+
+        // Leave through the top tab bar (TabBarView detaches Tickets).
+        await tester.tap(find.text('Directory'));
+        await tester.pumpAndSettle();
+
+        await resize(tester, compact);
+
+        await tester.tap(find.text('Tickets'));
+        await tester.pumpAndSettle();
+
+        final rootNavigator = tester.state<NavigatorState>(
+          find.byType(Navigator).first,
+        );
+        expect(find.byType(TicketPane), findsOneWidget);
+        expect(rootNavigator.canPop(), isTrue); // routed, never inline
+        // The pane instance survived hide → hidden resize → routed return.
+        expect(find.text('draft comment'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'route mode: expanded detail, leave via NAV RAIL, shrink, return → routed',
+      (tester) async {
+        PackageSettings.instance.update(
+          (s) => s.compactDetailMode = CompactDetailMode.route,
+        );
+        addTearDown(() {
+          PackageSettings.instance.update(
+            (s) => s.compactDetailMode = CompactDetailMode.overlay,
+          );
+        });
+        await pumpApp(tester, size: expanded);
+
+        await tester.tap(find.text('Webhook drops events'));
+        await tester.pumpAndSettle();
+        expect(find.byType(TicketPane), findsOneWidget);
+
+        // Leave through the primary destinations (IndexedStack keeps Work
+        // mounted and laid out, just unpainted).
+        await tester.tap(find.text('Ops'));
+        await tester.pumpAndSettle();
+
+        await resize(tester, compact);
+
+        // Back via the bottom nav (compact width now).
+        await tester.tap(find.text('Work'));
+        await tester.pumpAndSettle();
+
+        final rootNavigator = tester.state<NavigatorState>(
+          find.byType(Navigator).first,
+        );
+        expect(find.byType(TicketPane), findsOneWidget);
+        expect(rootNavigator.canPop(), isTrue); // routed, never inline
+      },
+    );
+
     testWidgets('route mode gives the compact detail a real page route', (
       tester,
     ) async {
