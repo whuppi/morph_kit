@@ -83,11 +83,13 @@ class ModalFormVisuals {
 /// motion, and content reflow all steer the landing. On arrival the
 /// content reparents into the route and the flight disposes.
 ///
-/// The feedback loop that makes the landing seamless: the flight lays the
-/// content out at the lerped width and reports its size to [contentSize];
-/// the destination's placeholder adopts that size; the placeholder's
-/// global rect is the flight target. At `t = 1` all three agree by
-/// construction.
+/// The sizing handshake that makes the landing seamless — one quantity
+/// flows each way, so there is no feedback loop: the destination reports
+/// the width it OFFERS (the placeholder's incoming constraints, via
+/// [reportDestinationMaxWidth]); the flight lays the content out at that
+/// width from the first frame and reports the resulting size to
+/// [contentSize]; the placeholder adopts that size, and its global rect —
+/// the true final geometry — is the flight target throughout.
 class ModalMorphFlight {
   /// Starts a flight. The controller runs immediately.
   ModalMorphFlight({
@@ -137,6 +139,20 @@ class ModalMorphFlight {
   /// behind layout. The destination placeholder mirrors it.
   final ValueNotifier<Size> contentSize;
 
+  /// The width the destination offers its content slot, reported from the
+  /// placeholder's incoming constraints. The flight lays the content out
+  /// at this width so the reported [contentSize] is the true final size —
+  /// laying it out at the lerped container width instead is circular, and
+  /// the circle has a wrong fixed point (a sheet that wraps to the
+  /// dialog's width, then snaps wide after landing).
+  double? _destinationMaxWidth;
+
+  /// Called from the placeholder's `LayoutBuilder` during layout — plain
+  /// field write, read on the controller's next tick.
+  void reportDestinationMaxWidth(double width) {
+    if (width.isFinite && width > 0) _destinationMaxWidth = width;
+  }
+
   late final AnimationController _controller;
   Rect _startRect;
   ModalFormVisuals _start;
@@ -171,6 +187,7 @@ class ModalMorphFlight {
     _end = end;
     targetMode = mode;
     _lastTargetRect = null;
+    _destinationMaxWidth = null;
     unawaited(_controller.forward(from: 0));
     _entry?.markNeedsBuild();
   }
@@ -217,7 +234,7 @@ class ModalMorphFlight {
                   child: OverflowBox(
                     alignment: Alignment.topCenter,
                     minWidth: 0,
-                    maxWidth: rect.width,
+                    maxWidth: _destinationMaxWidth ?? rect.width,
                     minHeight: 0,
                     maxHeight: maxHeight,
                     child: _MeasureSize(

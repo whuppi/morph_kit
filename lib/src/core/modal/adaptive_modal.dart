@@ -264,6 +264,7 @@ class _ModalSession<T> {
           isDismissible: config.barrierDismissible,
           enableDrag: config.enableDrag,
           showDragHandle: config.showDragHandle,
+          clipBehavior: Clip.antiAlias,
           settings: settings,
           sheetAnimationStyle: style,
         );
@@ -293,10 +294,18 @@ class _ModalScope<T> extends StatelessWidget {
       builder: (context, morphing, _) {
         final flight = session._flight;
         if (morphing && flight != null) {
-          return ValueListenableBuilder<Size>(
-            valueListenable: flight.contentSize,
-            builder: (context, size, _) =>
-                SizedBox.fromSize(key: flight.placeholderKey, size: size),
+          // The LayoutBuilder reports the width this slot OFFERS, so the
+          // flight can lay the content out at its true final width — the
+          // placeholder then mirrors the resulting size back.
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              flight.reportDestinationMaxWidth(constraints.maxWidth);
+              return ValueListenableBuilder<Size>(
+                valueListenable: flight.contentSize,
+                builder: (context, size, _) =>
+                    SizedBox.fromSize(key: flight.placeholderKey, size: size),
+              );
+            },
           );
         }
         return KeyedSubtree(
@@ -305,6 +314,11 @@ class _ModalScope<T> extends StatelessWidget {
         );
       },
     );
-    return mode == ModalLayoutMode.dialog ? Dialog(child: content) : content;
+    // antiAlias (not Material's default Clip.none) so corner rendering at
+    // rest matches the flight's clipped surface — content painting near
+    // the corners would otherwise pop square at the handoff.
+    return mode == ModalLayoutMode.dialog
+        ? Dialog(clipBehavior: Clip.antiAlias, child: content)
+        : content;
   }
 }

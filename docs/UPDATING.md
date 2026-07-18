@@ -101,6 +101,15 @@ With the container transform (`ModalConfig.morph`, default on), three more:
    shows the content during its exit animation and the flight's ticker is
    disposed. Completing the result while a flight is airborne leaks the
    ticker and pops an empty route.
+7. **The width handshake flows one quantity each way.** The placeholder
+   reports the width its slot OFFERS (`reportDestinationMaxWidth`); the
+   flight lays the content out at that width and reports the SIZE back.
+   Laying the content out at the lerped container width instead is
+   circular, and the circle's fixed point is wrong — the sheet wraps to
+   the outgoing dialog's width, then snaps wide after landing. Related:
+   both resting forms pass `Clip.antiAlias` so corner rendering matches
+   the flight's clipped surface; reverting to Material's default
+   `Clip.none` makes content near the corners pop square at handoff.
 
 ## §4 — Adding a component (divider / empty state)
 

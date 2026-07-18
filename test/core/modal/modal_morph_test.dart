@@ -121,6 +121,49 @@ void main() {
     expect(_contentIsInsideSheet(tester), isTrue);
   });
 
+  testWidgets('the sheet lands at its final width — no post-landing resize', (
+    tester,
+  ) async {
+    await pumpApp(tester, _opener(), size: const Size(1000, 800));
+    await _open(tester);
+
+    tester.view.physicalSize = const Size(500, 800);
+    await tester.pump();
+    await tester.pump();
+    // Let the width handshake propagate (report → flight relayout → size
+    // back), as continuous frames would on a device...
+    for (var i = 0; i < 5; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    // ...then jump near flight end: the destination sheet must already sit
+    // at its true final geometry — the placeholder is laid out at the
+    // width the sheet offers, not at the outgoing dialog's width.
+    await tester.pump(const Duration(milliseconds: 250));
+    final sheetSurface = find
+        .descendant(
+          of: find.byType(BottomSheet),
+          matching: find.byType(Material),
+        )
+        .first;
+    final flightEndRect = tester.getRect(sheetSurface);
+
+    await tester.pumpAndSettle();
+    expect(tester.getRect(sheetSurface), flightEndRect);
+    expect(flightEndRect.width, 500);
+  });
+
+  testWidgets('both resting forms clip like the flight does', (tester) async {
+    await pumpApp(tester, _opener(), size: const Size(1000, 800));
+    await _open(tester);
+
+    final dialog = tester.widget<Dialog>(find.byType(Dialog));
+    expect(dialog.clipBehavior, Clip.antiAlias);
+
+    await resizeWindow(tester, const Size(500, 800));
+    final sheet = tester.widget<BottomSheet>(find.byType(BottomSheet));
+    expect(sheet.clipBehavior, Clip.antiAlias);
+  });
+
   testWidgets('flight surface morphs geometry between the forms', (
     tester,
   ) async {

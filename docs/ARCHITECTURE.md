@@ -101,9 +101,12 @@ the pattern): during the swap the live content mounts in a flight — an
 overlay entry above the routes — whose surface lerps rect, shape, color, and
 elevation from the outgoing form's geometry to the destination's. The
 destination route lays out a same-size placeholder whose LIVE rect is the
-flight's landing target, tracked every frame; the flight reports the
-content's laid-out size back to the placeholder, so at landing all three
-agree and the handoff is pixel-clean. Dismissal mid-flight lands the content
+flight's landing target, tracked every frame. The sizing handshake sends
+one quantity each way: the placeholder reports the width its slot OFFERS,
+the flight lays the content out at that width and reports the resulting
+size back — so the destination reaches its true final geometry within a few
+frames and the handoff is pixel-clean. Both resting forms clip
+(`Clip.antiAlias`) to match the flight's clipped surface. Dismissal mid-flight lands the content
 into the exiting route immediately; a second breakpoint crossing retargets
 the flight from its current visual state. `ModalConfig(morph: false)`
 restores the instant cut.
