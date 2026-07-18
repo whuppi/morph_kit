@@ -1,0 +1,29 @@
+name: adaptive_layouts
+version: 0.0.0
+description: >-
+  Adaptive list-detail and split layouts that morph between phone and
+  desktop forms — slide-over details that cover nav bars, draggable
+  anchored dividers, and pane state that survives window resizes.
+homepage: https://github.com/whuppi/adaptive_layouts
+repository: https://github.com/whuppi/adaptive_layouts
+issue_tracker: https://github.com/whuppi/adaptive_layouts/issues
+
+topics:
+  - layout
+  - adaptive
+  - responsive
+  - list-detail
+  - split-view
+
+environment:
+  sdk: ^3.11.0
+  flutter: ">=3.41.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter

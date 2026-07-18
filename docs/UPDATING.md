@@ -1,0 +1,124 @@
+# adaptive_layouts — Updating
+
+> **Type:** maintenance · **Scope:** adaptive_layouts · **Last verified:** 2026-07-18
+> **Companion docs:** [`ARCHITECTURE.md`](ARCHITECTURE.md) · [`CAPABILITY_ROADMAP.md`](CAPABILITY_ROADMAP.md)
+
+Maintenance recipes and the invariants that must not break. When code and
+docs disagree, code wins — then fix the doc in the same commit.
+
+---
+
+## The check sequence
+
+```sh
+make check          # analyze + package tests + example journeys
+# or piecewise:
+fvm flutter analyze
+fvm flutter test                       # package suite (unit + widget)
+cd example && fvm flutter test         # full-app journeys
+```
+
+Green on all three before claiming any change done. The example app is the
+integration harness — it reproduces the hardest consumer topology (nested
+kept-alive tab routers + overlay mode + URL sync) so package changes are
+validated against real conditions without touching a real app.
+
+---
+
+## §1 — The overlay invariants (DO NOT BREAK)
+
+The overlay compact mode rests on three invariants. Every one was earned by
+a real failure; tests pin them (`test/core/list_detail/
+list_detail_overlay_test.dart`, `paint_visibility_detector_test.dart`, and
+the example's overlay journeys).
+
+1. **The `OverlayPortal` is shown once and never hidden.** The overlay child
+   collapses to `SizedBox.shrink()` instead. Toggling show/hide on layout
+   transitions trips `OverlayPortalController`'s assertion during the layout
+   phase and reintroduces a one-frame gap.
+2. **`PaintVisibilityDetector.evaluate()` runs during layout;
+   `PaintVisibilityObserver` reports during paint; the re-show notifier
+   update is deferred to a post-frame callback.** Layout-after-paint ordering
+   is what makes the was-painted flag trustworthy; mutating a notifier during
+   paint is illegal. Hide is zero-frame, re-show has a one-frame lag —
+   that asymmetry is by design.
+3. **Suppression needs a subsequent build pass of the inactive child.** Real
+   tab switches produce one. Don't "fix" this by polling or timers; if a
+   consumer hits a case with no rebuild, the answer is an explicit rebuild
+   at the shell, not package-side scheduling.
+
+Related: on expanded → compact with an open selection, the slide controller
+JUMPS to 1.0 (no re-animation) — the detail was already visible.
+
+## §2 — The morph invariants
+
+- **Detail and split panes mount under stable `GlobalKey`s.** Anything that
+  changes a pane's position in the tree between compact and expanded must
+  keep the same key wrapping the same builder output, or state preservation
+  (the package's core guarantee) silently dies. The resize tests fail loudly
+  if it does.
+- **Dismiss keeps the outgoing detail in the tree** until the exit animation
+  reaches `dismissed` (`_outgoingDetailId`, plus `_lastSeenSelectedId` for
+  external `controller.dismiss()` calls). Removing either breaks one of the
+  two dismiss paths.
+
+---
+
+## §3 — Adding a component (divider / empty state)
+
+1. Create the file under `src/components/{dividers|empty_states}/`.
+2. Match the shared contract: dividers implement the `DividerBuilder`
+   typedef via a static `builder`; empty states expose a
+   `WidgetBuilder`-returning static (`IconMessageEmpty.of` shape).
+3. Components may import Material and core typedefs — never core widgets'
+   internals. Core must not gain an import of the new component.
+4. Export from the barrel's components section.
+5. Mirror a test under `test/components/...` asserting the visual states
+   (idle / dragging / settling for dividers).
+6. Row in `CAPABILITY_ROADMAP.md`.
+
+## §4 — Adding a config field
+
+1. Add the field to the right pure-data class (`PaneConfig`,
+   `CompactConfig`) with a default that preserves current behavior.
+2. Wire it where it acts. If it affects pane width, it goes through
+   `PaneWidthModel` — never inline width math in a widget (the two widgets
+   must stay identical in resize behavior).
+3. If a widget must react to the field changing at runtime, handle it in
+   `didUpdateWidget` (see the `paneConfig` reset there).
+4. Unit-test the model change; widget-test the visible effect.
+5. **No decorative fields.** A config field with no behavior behind it is a
+   lie — this package once shipped `anchors` / `resizeMode` / `isSettling`
+   unimplemented; they're real now. Don't regress the standard.
+
+## §5 — Adding a layout widget
+
+1. New folder under `src/core/<name>/` (peer of `list_detail/`, `split/`).
+2. Reuse the shared vocabulary: `AdaptiveLayoutConfig.resolveBreakpoint`,
+   `PaneConfig` + `PaneWidthModel` for any draggable pane, the
+   `DividerBuilder` typedef, GlobalKey reparenting for anything that
+   morphs.
+3. Nullable builder params for anything a component could fill.
+4. Barrel export, mirrored test folder, roadmap rows, architecture tree
+   update.
+
+## §6 — Changing the API surface
+
+Consumers use `path:` dependencies, so breaks surface instantly at their
+next analyze. After any signature change: run the check sequence here, then
+`fvm flutter analyze` in each consuming app (the workspace grep for
+`adaptive_layouts` finds them). Update the example's usage in the same
+session — it is the reference consumers copy from.
+
+---
+
+## Reading the failure modes
+
+| Failure | First check |
+|---|---|
+| Overlay detail lingers over another tab | Did a rebuild pass reach the inactive child? (§1.3) Then: `evaluate()` still called from the layout builder? |
+| Assertion: OverlayPortalController show/hide during layout | Someone reintroduced portal toggling — restore the always-showing shape (§1.1) |
+| Duplicate GlobalKey crash on resize | A pane is built in both layouts within one frame — check the mode branches only ever mount one copy |
+| Detail state resets on window resize | GlobalKey chain broken (§2) |
+| Divider ignores drags | The 24px hit zone is positioned at `paneWidth - 12`; check the width actually read from `PaneWidthModel` |
+| Snap lands at the wrong place | Anchor positions clamp by min/max — verify against `pane_width_model_test.dart` expectations |

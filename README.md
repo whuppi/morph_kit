@@ -1,0 +1,259 @@
+<h1 align="center">adaptive_layouts</h1>
+
+<p align="center">
+  <a href="https://pub.dev/packages/adaptive_layouts"><img src="https://img.shields.io/pub/v/adaptive_layouts.svg" alt="pub package"></a>
+  <a href="https://pub.dev/packages/adaptive_layouts/score"><img src="https://img.shields.io/pub/likes/adaptive_layouts" alt="likes"></a>
+  <a href="https://pub.dev/packages/adaptive_layouts/score"><img src="https://img.shields.io/pub/points/adaptive_layouts" alt="pub points"></a>
+  <a href="https://github.com/whuppi/adaptive_layouts"><img src="https://img.shields.io/github/stars/whuppi/adaptive_layouts?style=flat&logo=github" alt="GitHub stars"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="license: MIT"></a>
+</p>
+
+Layout widgets that morph between phone and tablet / desktop forms. On a phone, the detail pane slides over the list and covers the bottom nav; on a wide window, the two panes sit side by side with a draggable divider. When the user resizes a desktop window across the breakpoint, the panes rearrange — and the widgets inside them keep their state. A half-typed message survives the resize, because the detail is moved in the tree, not rebuilt.
+
+Two widgets carry the package: `ListDetailLayout` (list + selected detail, the messaging-app shape) and `AdaptiveSplit` (two always-present panes, the player shape). Both are router-agnostic and state-management-agnostic — a plain `ChangeNotifier` controller is the whole integration surface.
+
+> **The guarantee that makes this package exist:** pane widget *instances* survive the compact ↔ expanded morph. The standard adaptive components (Compose's `ListDetailPaneScaffold`, route-based detail pages) rebuild the detail from saved state instead — cursor position, scroll offset, and in-flight animations reset. Here they don't.
+
+> **Status:** 0.x. The API can change between minor versions until `1.0.0` — pre-1.0, the minor is the breaking axis, so pin `^0.N.0` and read the changelog on minor bumps.
+
+> like it? a [⭐ star](https://github.com/whuppi/adaptive_layouts) or [👍 like](https://pub.dev/packages/adaptive_layouts) is the entire marketing budget. [Bugs & features →](https://github.com/whuppi/adaptive_layouts/issues)
+
+---
+
+<details>
+<summary><b>👀 Peek inside</b></summary>
+
+- [Install](#install)
+- [Quick start](#quick-start)
+- [Usage](#usage)
+  - [The controller](#the-controller)
+  - [Covering the bottom nav (overlay mode)](#covering-the-bottom-nav-overlay-mode)
+  - [Sizing the panes](#sizing-the-panes)
+  - [Two panes without a selection](#two-panes-without-a-selection)
+  - [One breakpoint for the whole app](#one-breakpoint-for-the-whole-app)
+- [Why widget-level morphing](#why-widget-level-morphing)
+- [The example app](#the-example-app)
+- [Platform support](#platform-support)
+- [Not in the box](#not-in-the-box)
+- [Docs](#docs)
+- [License](#license)
+
+</details>
+
+---
+
+## Install
+
+```yaml
+dependencies:
+  adaptive_layouts:
+```
+
+Pure Flutter — no native code, no assets, no setup, any platform.
+
+---
+
+## Quick start
+
+Two builders, and the layout handles the rest — breakpoint switching, slide animation, swipe-to-dismiss, back-gesture handling, state preservation:
+
+```dart
+import 'package:adaptive_layouts/adaptive_layouts.dart';
+
+ListDetailLayout<String>(
+  listBuilder: (context, selectedId, onSelect) => ChatList(
+    selectedId: selectedId,   // highlight the open row on wide layouts
+    onTap: onSelect,          // tapping a row opens its detail
+  ),
+  detailBuilder: (context, id, mode, onDismiss) => ChatScreen(
+    id: id,
+    showBackButton: mode == DetailLayoutMode.stacked,     // phone: back arrow
+    showCloseButton: mode == DetailLayoutMode.sideBySide, // wide: close X
+    onBack: onDismiss,
+  ),
+)
+```
+
+Below 720px the detail slides over the list (`DetailLayoutMode.stacked`); at 720px and above the panes share the width (`DetailLayoutMode.sideBySide`). The `mode` argument tells your detail which affordance to show — everything else is the same widget.
+
+---
+
+## Usage
+
+### The controller
+
+`ListDetailController` works like `ScrollController`: skip it and the widget creates one internally; provide one to drive selection from outside.
+
+```dart
+final controller = ListDetailController<String>();
+
+ListDetailLayout<String>(
+  controller: controller,
+  listBuilder: ...,
+  detailBuilder: ...,
+)
+
+controller.select('chat-42');   // open programmatically (deep link, router)
+controller.dismiss();           // close with the exit animation
+```
+
+Two reads with different jobs:
+
+```dart
+controller.hasSelection;    // data state — flips the instant dismiss() runs
+controller.isDetailVisible; // visual state — stays true until the exit
+                            // animation finishes
+```
+
+`isDetailVisible` is what an app shell wants for timing UI around the detail — it answers "is the pane still on screen", not "is something selected". URL sync sits on top of these three members; the [example app](example/) ships a complete `ListDetailRouter` for auto_route as reference wiring.
+
+### Covering the bottom nav (overlay mode)
+
+By default the compact detail renders inline, inside the layout's own bounds — it cannot cover a bottom nav or tab bar that sits outside it. Overlay mode can:
+
+```dart
+ListDetailLayout<String>(
+  compactDetailMode: CompactDetailMode.overlay,
+  ...
+)
+```
+
+The detail now renders in the Navigator's overlay, sliding over everything the Navigator covers — bottom nav, tab bars — while staying in the widget tree with its state intact. `CompactConfig(useRootOverlay: true)` targets the root overlay instead, covering ancestors above the Navigator too.
+
+Overlay mode is built for kept-alive tab navigation: when several overlay-mode layouts are mounted at once (one per tab) and only one tab is painted, the inactive tabs' overlays suppress themselves automatically — hiding is immediate, reappearing takes one frame. Works with `IndexedStack`, `Offstage`, tab routers, or any parent that stops painting inactive children.
+
+### Sizing the panes
+
+`PaneConfig` is pure data; the divider visual is a builder you pick or write:
+
+```dart
+ListDetailLayout<String>(
+  paneConfig: const PaneConfig(
+    defaultListWidth: 300,  // starting width, scaled from the breakpoint
+    minListWidth: 240,      // drag floor
+    maxListRatio: 0.4,      // drag ceiling, as a share of the window
+  ),
+  dividerBuilder: HandleDivider.builder,  // macOS-style hover + drag handle
+  ...
+)
+```
+
+Ships with two dividers — `HandleDivider` (resize cursor, three-dot handle, settle tint) and `MaterialDivider` (thin line) — or pass your own `DividerBuilder`. Null means an invisible drag zone: resizing still works, nothing is drawn.
+
+Two extras for desktop-grade feel:
+
+```dart
+// Snap points: on release, the divider animates to the nearest anchor.
+PaneConfig(
+  anchors: [PaneAnchor.fromStart(240), PaneAnchor.proportion(0.5)],
+  initialAnchorIndex: 0,
+)
+
+// Fixed width: the pane keeps its pixel width when the window resizes
+// (default is ratio — the pane scales with the window).
+PaneConfig(resizeMode: PaneResizeMode.pixels)
+```
+
+For the wide layout's "nothing selected" area, pass any builder — or the shipped one:
+
+```dart
+emptyStateBuilder: IconMessageEmpty.of(
+  icon: Icons.chat_bubble_outline,
+  message: 'Select a conversation',
+)
+```
+
+### Two panes without a selection
+
+`AdaptiveSplit` is the sibling for screens where both panes always exist — a player with its queue, an editor with its preview:
+
+```dart
+AdaptiveSplit(
+  primaryBuilder: (context, isExpanded) => PlayerHero(),
+  secondaryBuilder: (context, isExpanded) => QueueList(),
+  dividerBuilder: HandleDivider.builder,
+  compactBehavior: SplitCompactBehavior.stack,  // or .hidden
+)
+```
+
+Wide: side by side with the same draggable divider (primary at the start or end via `primaryPosition`). Narrow: a vertical stack, or primary only. Both panes keep their state across the morph, same as the detail pane does.
+
+### One breakpoint for the whole app
+
+Set it once above `MaterialApp`; every layout in the subtree inherits it. A widget's own `expandedBreakpoint` parameter still wins when you need a local exception; with neither, the default is 720.
+
+```dart
+AdaptiveLayoutConfig(
+  expandedBreakpoint: 800,
+  child: MaterialApp(...),
+)
+```
+
+---
+
+## Why widget-level morphing
+
+<details>
+<summary><b>🧩 Why not push the detail as a route on phones?</b></summary>
+
+A route-based compact detail gets platform behaviors free (predictive back, edge swipe), but the detail then lives inside a page — and pages rebuild their content from state. Carrying one widget instance between "pane 2 of a wide layout" and "a pushed route" means either lifting every piece of ephemeral state out of the widgets, or a fragile zero-transition page dance around duplicate `GlobalKey`s mid-animation.
+
+This package keeps both layouts inside one widget instead. The detail mounts under a stable `GlobalKey`, so the morph reparents the same element — Flutter's documented mechanism for moving a widget without losing its state. The cost is owned in exchange: the slide animation, swipe-to-dismiss, and back handling are implemented here rather than inherited from the Navigator. That trade — a stronger state guarantee for a self-implemented navigation feel — is the package's identity.
+
+</details>
+
+<details>
+<summary><b>🧩 How overlay mode survives tab navigation</b></summary>
+
+An `OverlayPortal` paints in the Overlay, outside its parent — so a parent that stops painting (an inactive `IndexedStack` child) cannot take its overlay down with it. The layout closes that hole by probing paint itself: a render object reports "I was painted this frame", and the layout checks the flag during the next layout pass. Not painted last frame means the tab is inactive, and the overlay child collapses to nothing. The portal itself is shown once and never toggled, which sidesteps `OverlayPortalController`'s restriction against show/hide during layout. The full contract, including the invariants to keep when editing this machinery, is in [`docs/UPDATING.md`](docs/UPDATING.md).
+
+</details>
+
+---
+
+## The example app
+
+[`example/`](example/) is a full app in one file, not a snippet gallery: three domains behind an adaptive shell (bottom nav ↔ rail), nested tab routers, URL-synced list-details in overlay mode inside every tab, adaptive modals, and a persistent strip above the router. It exists so package changes are tested against the hardest real topology — its `flutter test` journeys cover resize state preservation, overlay suppression across tabs, deep links, and auto-dismiss on deletion.
+
+```sh
+cd example
+flutter run -d chrome   # the URL bar shows the deep-link sync live
+flutter test            # the journey suite
+```
+
+---
+
+## Platform support
+
+Pure Flutter, no conditional imports, no platform code:
+
+| Android | iOS | macOS | Windows | Linux | Web |
+|:---:|:---:|:---:|:---:|:---:|:---:|
+| ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+
+---
+
+## Not in the box
+
+- **Router / URL integration** — deliberately. The controller is the seam; wire it to any router. The example ships complete auto_route reference wiring (`ListDetailRouter`, `MultiTypeListDetailRouter`) to copy from.
+- **Selection validation** — the layout does not know whether `chat-42` still exists. When an entity is deleted, the app clears the selection (the example's `selectedIdExists` pattern shows how, including why the dismissal must be deferred out of the build phase).
+- **Navigation bars, rails, tab bars** — this package lays out panes; the shell around them is your app's.
+
+---
+
+## Docs
+
+The README covers the everyday stuff. wanna go deeper?
+
+| Doc | What's inside |
+|---|---|
+| [Architecture](docs/ARCHITECTURE.md) | How it's built: the two-layer split, the overlay machinery, the width model, design decisions |
+| [Capabilities](docs/CAPABILITY_ROADMAP.md) | Every capability with status, plus the explicit non-goals |
+| [Updating](docs/UPDATING.md) | Maintenance recipes and the invariants that must not break |
+| [Example](example/) | The full-app integration reference, journeys checked by test |
+
+---
+
+## License
+
+MIT. See [LICENSE](LICENSE).
