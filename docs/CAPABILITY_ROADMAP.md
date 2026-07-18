@@ -27,7 +27,7 @@ while an active row is not `DONE` or `WONT_DO`. Statuses: `DONE` ·
 | Empty state builder (expanded, no selection) | DONE | Nullable; `IconMessageEmpty` shipped as a convenience |
 | RTL support | DONE | Slide, swipe, and divider drag are direction-aware |
 | A11y route parity for inline/overlay details | DONE | Open detail scopes as a route; covered content leaves the semantics tree (`ExcludeSemantics` / `BlockSemantics`); `DismissIntent` (Escape) dismisses with focus inside |
-| Breakpoint-crossing motion (discrete jumps) | DONE | Fold/rotation/split-snap: inline/overlay grow the detail out of its pane; route plays its real entrance. Continuous drags cut (track the hand) |
+| Breakpoint-crossing motion (both directions) | DONE | Into compact: detail grows out of its pane (inline/overlay) or the route's real entrance plays. Into expanded: the list slides in beside the full-width detail. Pane geometry still tracks drags without motion |
 | Deep-link-friendly controller semantics | DONE | Initial selection renders without animation; example ships URL sync |
 
 ## AdaptiveSplit

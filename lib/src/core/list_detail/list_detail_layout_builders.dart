@@ -12,11 +12,25 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
   // EXPANDED LAYOUT
   // ===========================================================================
 
-  /// Expanded: side-by-side panes with draggable divider.
+  /// Expanded: side-by-side panes with draggable divider, rebuilt per
+  /// expand-entry tick without a setState listener.
   Widget buildExpandedLayout(BoxConstraints constraints) {
+    return AnimatedBuilder(
+      animation: _expandEntryController,
+      builder: (context, _) => _buildExpandedLayoutInner(constraints),
+    );
+  }
+
+  Widget _buildExpandedLayoutInner(BoxConstraints constraints) {
     final availableWidth = constraints.maxWidth;
     _lastExpandedWidth = availableWidth;
-    final listWidth = _paneWidth.width(availableWidth);
+    // The expand-entry animation scales the RENDERED list width only —
+    // the width model itself is untouched, so dividers and anchors keep
+    // their real geometry the moment the entry settles.
+    final entry = _expandEntryController.isAnimating
+        ? widget.compactConfig.curve.transform(_expandEntryController.value)
+        : 1.0;
+    final listWidth = _paneWidth.width(availableWidth) * entry;
 
     final selectedId = _controller.selectedId;
     final dividerBuilder = widget.dividerBuilder;

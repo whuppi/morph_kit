@@ -27,17 +27,19 @@ Widget _layout(CompactDetailMode mode) {
   );
 }
 
-final _detail = find.text('detail-a (stacked)');
+final _stacked = find.text('detail-a (stacked)');
+final _sideBySide = find.text('detail-a (sideBySide)');
 
 /// A crossing delivered as many small per-frame deltas — a window drag.
-Future<void> _continuousResize(
-  WidgetTester tester,
-  double from,
-  double to,
-) async {
+/// The panes must animate their re-arrangement at the threshold exactly
+/// like they do for a one-frame jump; only the tracking of pane geometry
+/// within an arrangement follows the hand without motion.
+Future<void> _draggedResize(WidgetTester tester, double from, double to) async {
   var width = from;
-  while (width > to) {
-    width = (width - 30).clamp(to, from);
+  while (width != to) {
+    width = from > to
+        ? (width - 30).clamp(to, from)
+        : (width + 30).clamp(from, to);
     tester.view.physicalSize = Size(width, 800);
     await tester.pump();
   }
@@ -45,9 +47,22 @@ Future<void> _continuousResize(
 
 void main() {
   for (final mode in [CompactDetailMode.inline, CompactDetailMode.overlay]) {
-    testWidgets(
-      '${mode.name}: discrete jump grows the detail out of its pane',
-      (tester) async {
+    for (final (label, cross) in [
+      (
+        'one-frame jump',
+        (WidgetTester tester) async {
+          tester.view.physicalSize = const Size(500, 800);
+          await tester.pump();
+        },
+      ),
+      (
+        'window drag',
+        (WidgetTester tester) => _draggedResize(tester, 1000, 700),
+      ),
+    ]) {
+      testWidgets('${mode.name}: $label grows the detail out of its pane', (
+        tester,
+      ) async {
         await pumpApp(tester, _layout(mode), size: const Size(1000, 800));
         await tester.tap(find.text('item-a'));
         await tester.pumpAndSettle();
@@ -55,44 +70,87 @@ void main() {
         await tester.tap(find.byType(CounterPane));
         await tester.pump();
 
-        // One-frame jump across the breakpoint (fold / rotation shape).
-        tester.view.physicalSize = const Size(500, 800);
-        await tester.pump();
+        await cross(tester);
         await tester.pump(const Duration(milliseconds: 40));
 
-        final midMorph = tester.getTopLeft(_detail).dx;
+        final midMorph = tester.getTopLeft(_stacked).dx;
         await tester.pumpAndSettle();
-        final settled = tester.getTopLeft(_detail).dx;
+        final settled = tester.getTopLeft(_stacked).dx;
 
-        expect(midMorph, greaterThan(settled)); // it slid in from the pane edge
+        expect(midMorph, greaterThan(settled)); // slid in from the pane edge
         expect(find.text('count: 2'), findsOneWidget); // state rode the morph
-      },
-    );
+      });
+    }
 
-    testWidgets('${mode.name}: continuous drag across the breakpoint cuts', (
+    testWidgets('${mode.name}: crossing into expanded slides the list in', (
       tester,
     ) async {
-      await pumpApp(tester, _layout(mode), size: const Size(1000, 800));
+      await pumpApp(tester, _layout(mode), size: const Size(500, 800));
       await tester.tap(find.text('item-a'));
       await tester.pumpAndSettle();
+      await tester.tap(find.byType(CounterPane));
+      await tester.tap(find.byType(CounterPane));
+      await tester.pump();
 
-      await _continuousResize(tester, 1000, 700);
+      tester.view.physicalSize = const Size(1000, 800);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 40));
 
-      // No entrance animation is running — the detail is simply there.
-      expect(tester.hasRunningAnimations, isFalse);
-      final immediate = tester.getTopLeft(_detail).dx;
+      // Mid-entry the detail is wider than its final pane: its leading
+      // edge sits closer to the window edge than the settled divider.
+      final midEntry = tester.getTopLeft(_sideBySide).dx;
       await tester.pumpAndSettle();
-      expect(tester.getTopLeft(_detail).dx, immediate);
+      final settled = tester.getTopLeft(_sideBySide).dx;
+
+      expect(midEntry, lessThan(settled));
+      expect(find.text('count: 2'), findsOneWidget);
     });
   }
 
-  testWidgets('route: discrete jump plays the real route entrance', (
+  for (final (label, cross) in [
+    (
+      'one-frame jump',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(500, 800);
+        await tester.pump();
+      },
+    ),
+    ('window drag', (WidgetTester tester) => _draggedResize(tester, 1000, 700)),
+  ]) {
+    testWidgets('route: $label plays the real route entrance', (tester) async {
+      await pumpApp(
+        tester,
+        _layout(CompactDetailMode.route),
+        size: const Size(1000, 800),
+      );
+      await tester.tap(find.text('item-a'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(CounterPane));
+      await tester.tap(find.byType(CounterPane));
+      await tester.pump();
+
+      await cross(tester); // crossing frame: list + offstage bridge
+      await tester.pump(const Duration(milliseconds: 16)); // overlay inserts
+      await tester.pump(const Duration(milliseconds: 16)); // route content live
+
+      // Entrance under way — and the LIST sits beneath it, not the bridge.
+      expect(find.text('item-a'), findsOneWidget);
+      final route = ModalRoute.of(tester.element(_stacked))!;
+      expect(route.animation!.status, AnimationStatus.forward);
+
+      await tester.pumpAndSettle();
+      expect(route.animation!.status, AnimationStatus.completed);
+      expect(find.text('count: 2'), findsOneWidget);
+    });
+  }
+
+  testWidgets('route: crossing into expanded slides the list in seamlessly', (
     tester,
   ) async {
     await pumpApp(
       tester,
       _layout(CompactDetailMode.route),
-      size: const Size(1000, 800),
+      size: const Size(500, 800),
     );
     await tester.tap(find.text('item-a'));
     await tester.pumpAndSettle();
@@ -100,36 +158,17 @@ void main() {
     await tester.tap(find.byType(CounterPane));
     await tester.pump();
 
-    tester.view.physicalSize = const Size(500, 800);
-    await tester.pump(); // crossing frame: list + offstage bridge, push queued
-    await tester.pump(const Duration(milliseconds: 16)); // overlay inserts
-    await tester.pump(const Duration(milliseconds: 16)); // route content live
+    tester.view.physicalSize = const Size(1000, 800);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 40));
 
-    // Entrance under way — and the LIST sits beneath it, not the bridge.
-    expect(find.text('item-a'), findsOneWidget);
-    final route = ModalRoute.of(tester.element(_detail))!;
-    expect(route.animation!.status, AnimationStatus.forward);
-
+    final midEntry = tester.getTopLeft(_sideBySide).dx;
     await tester.pumpAndSettle();
-    expect(route.animation!.status, AnimationStatus.completed);
+    final settled = tester.getTopLeft(_sideBySide).dx;
+
+    expect(midEntry, lessThan(settled));
+    final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+    expect(navigator.canPop(), isFalse); // the route is gone
     expect(find.text('count: 2'), findsOneWidget);
-  });
-
-  testWidgets('route: continuous drag across the breakpoint pushes instantly', (
-    tester,
-  ) async {
-    await pumpApp(
-      tester,
-      _layout(CompactDetailMode.route),
-      size: const Size(1000, 800),
-    );
-    await tester.tap(find.text('item-a'));
-    await tester.pumpAndSettle();
-
-    await _continuousResize(tester, 1000, 700);
-    await tester.pump();
-
-    final route = ModalRoute.of(tester.element(_detail))!;
-    expect(route.animation!.status, AnimationStatus.completed);
   });
 }

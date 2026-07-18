@@ -46,12 +46,6 @@ typedef DetailPaneBuilder<T> =
 
 // DividerBuilder is in shared/typedefs.dart — re-exported from barrel.
 
-/// A breakpoint crossing whose one-frame width delta reaches this many
-/// logical pixels is a discrete jump (fold/unfold, rotation, split-screen
-/// snap) and gets crossing motion. Continuous window drags deliver far
-/// smaller per-frame deltas — those must track the hand, never animate.
-const double _discreteResizeDelta = 64.0;
-
 // =============================================================================
 // WIDGET
 // =============================================================================
@@ -300,14 +294,16 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
   bool _bridgeOffstage = false;
 
   /// Expanded/compact state of the previous build — a flip marks the
-  /// breakpoint-crossing frame (all modes).
+  /// breakpoint-crossing frame (all modes). Meaningless until the first
+  /// build has happened: a deep-link mount is not a crossing.
   bool _wasExpandedLastBuild = false;
+  bool _hasBuiltOnce = false;
 
-  /// Width of the previous build. A crossing whose one-frame delta
-  /// reaches [_discreteResizeDelta] is a discrete jump (fold, rotation,
-  /// split-screen snap) and gets crossing motion; smaller deltas are a
-  /// continuous drag tracking the user's hand — those cut.
-  double? _lastBuildWidth;
+  /// Drives the crossing INTO expanded with an open detail: the detail
+  /// starts full width (matching what compact just showed — one frame of
+  /// perfect continuity) and the list slides in, pushing it into its
+  /// pane. 0 = no list; 1 = settled expanded layout.
+  late final AnimationController _expandEntryController;
 
   /// True between a route-mode build (which ran `evaluate()`) and the
   /// sync that consumes it. In such a frame `paintedThisFrame` is the
@@ -329,6 +325,14 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
       duration: widget.compactConfig.duration,
     );
     _slideAnimation = _buildSlideAnimation();
+    // No listener: buildExpandedLayout wraps itself in an AnimatedBuilder
+    // on this controller — a setState listener would fire during build
+    // when a crossing frame seeds the value.
+    _expandEntryController = AnimationController(
+      vsync: this,
+      duration: widget.compactConfig.duration,
+      value: 1.0,
+    );
 
     _paneWidth = PaneWidthModel(
       widget.paneConfig,
@@ -392,6 +396,7 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
 
     if (widget.compactConfig.duration != oldWidget.compactConfig.duration) {
       _slideController.duration = widget.compactConfig.duration;
+      _expandEntryController.duration = widget.compactConfig.duration;
     }
     if (widget.compactConfig.curve != oldWidget.compactConfig.curve) {
       _slideAnimation = _buildSlideAnimation();
@@ -455,6 +460,7 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
     _controller.removeListener(_onControllerChanged);
     _ownedController?.dispose();
     _slideController.dispose();
+    _expandEntryController.dispose();
     _settleController.dispose();
     _paintVisibility.dispose();
     super.dispose();
@@ -859,32 +865,37 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
         final isExpanded = constraints.maxWidth >= breakpoint;
         _isExpanded = isExpanded;
 
-        final crossedIntoCompact = _wasExpandedLastBuild && !isExpanded;
-        final lastWidth = _lastBuildWidth;
-        final discreteCrossing =
-            crossedIntoCompact &&
-            lastWidth != null &&
-            (constraints.maxWidth - lastWidth).abs() >= _discreteResizeDelta;
+        final crossedIntoCompact =
+            _hasBuiltOnce && _wasExpandedLastBuild && !isExpanded;
+        final crossedIntoExpanded =
+            _hasBuiltOnce && !_wasExpandedLastBuild && isExpanded;
         _wasExpandedLastBuild = isExpanded;
-        _lastBuildWidth = constraints.maxWidth;
+        _hasBuiltOnce = true;
 
         // Evaluate overlay visibility (immediate hide for inactive tabs).
         if (_useOverlay) _paintVisibility.evaluate();
 
-        // Crossing into compact with an open detail (inline/overlay).
-        // Discrete jump: the detail GROWS out of its pane — the slide
-        // starts with its leading edge at the old divider position and
-        // settles to full width. Continuous drag: snap fully open; the
-        // detail was already visible and motion would fight the hand.
+        // Crossing into compact with an open detail (inline/overlay): the
+        // detail GROWS out of its pane — the slide starts with its leading
+        // edge at the old divider position and settles to full width. The
+        // window itself keeps tracking the hand; only the pane
+        // re-arrangement animates (the Compose-canonical pane motion).
         if (!_useRoute && crossedIntoCompact && _controller.hasSelection) {
-          if (discreteCrossing) {
-            final listWidth = _paneWidth.width(_lastExpandedWidth);
-            _slideController.value = (1 - listWidth / constraints.maxWidth)
-                .clamp(0.0, 1.0);
-            unawaited(_slideController.forward());
-          } else {
-            _slideController.value = 1.0;
-          }
+          final listWidth = _paneWidth.width(_lastExpandedWidth);
+          _slideController.value = (1 - listWidth / constraints.maxWidth).clamp(
+            0.0,
+            1.0,
+          );
+          unawaited(_slideController.forward());
+        }
+
+        // Crossing into expanded with an open detail (every mode): the
+        // detail starts full width — matching what compact just showed,
+        // route or slide-over alike — and the list slides in, pushing it
+        // into its pane.
+        if (crossedIntoExpanded && _controller.hasSelection) {
+          _expandEntryController.value = 0.0;
+          unawaited(_expandEntryController.forward());
         }
 
         // Overlay entering compact outside a crossing frame (deep link,
@@ -924,13 +935,14 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
             _bridgeOffstage = false;
           } else if (crossedIntoCompact && _controller.hasSelection) {
             // Resize into compact with an open detail: the bridge holds
-            // the detail key until the push claims it. Discrete jump on a
-            // visible layout: the route plays its REAL entrance (the
-            // app's PageTransitionsTheme) over the list, so the bridge
-            // goes offstage — alive for the handoff, invisible. Anything
-            // else: visible bridge + instant push, so nothing flashes.
+            // the detail key until the push claims it. On a visible
+            // layout the route plays its REAL entrance (the app's
+            // PageTransitionsTheme) over the list, so the bridge goes
+            // offstage — alive for the handoff, invisible. On a hidden
+            // layout an entrance nobody watches is waste: visible bridge
+            // + instant push, so the re-show contract stays instant.
             _bridgeDetail = true;
-            if (discreteCrossing && _paintVisibility.notifier.value) {
+            if (_paintVisibility.notifier.value) {
               _bridgeOffstage = true;
               _instantRoutePush = false;
             } else {

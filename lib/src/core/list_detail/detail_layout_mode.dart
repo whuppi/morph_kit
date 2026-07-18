@@ -32,9 +32,9 @@ enum CompactDetailMode {
   ///   route, the covered list leaves the semantics tree, and
   ///   `DismissIntent` (Escape on desktop) dismisses when the focus is
   ///   inside the detail.
-  /// - Breakpoint crossings with an open detail: a discrete jump (fold,
-  ///   rotation, split-screen snap) grows the detail out of its pane to
-  ///   full width; a continuous window drag tracks the hand — no motion.
+  /// - Breakpoint crossings with an open detail animate both ways: into
+  ///   compact the detail grows out of its pane to full width; into
+  ///   expanded the list slides in and pushes it back into its pane.
   ///
   /// Pick when the detail is part of the screen and the surrounding
   /// chrome should stay present.
@@ -58,9 +58,9 @@ enum CompactDetailMode {
   ///   (`BlockSemantics` — the Drawer/ModalBarrier primitive), and
   ///   `DismissIntent` (Escape on desktop) dismisses when the focus is
   ///   inside the detail.
-  /// - Breakpoint crossings with an open detail: a discrete jump (fold,
-  ///   rotation, split-screen snap) grows the detail out of its pane to
-  ///   full width; a continuous window drag tracks the hand — no motion.
+  /// - Breakpoint crossings with an open detail animate both ways: into
+  ///   compact the detail grows out of its pane to full width; into
+  ///   expanded the list slides in and pushes it back into its pane.
   ///
   /// Pick for full-screen details with instant resize morphs, when the
   /// page's own snackbars/FABs are not needed while a detail is open.
@@ -85,10 +85,10 @@ enum CompactDetailMode {
   ///   reparents between the route and the expanded pane. Hidden
   ///   kept-alive tabs remove their route (selection and state kept)
   ///   and restore it instantly when shown again.
-  /// - Breakpoint crossings with an open detail: a discrete jump (fold,
-  ///   rotation, split-screen snap) plays the route's REAL entrance over
-  ///   the list; a continuous window drag pushes with zero entrance —
-  ///   tracking the hand, not animating against it.
+  /// - Breakpoint crossings with an open detail animate both ways: into
+  ///   compact the route's REAL entrance plays over the list; into
+  ///   expanded the route is replaced in one seamless frame by the
+  ///   full-width pane detail, and the list slides in beside it.
   ///
   /// Pick when the detail should feel like native navigation and evolve
   /// with the platform's back-gesture conventions.

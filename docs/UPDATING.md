@@ -207,19 +207,27 @@ The machinery in `list_detail_layout.dart` holds:
    hero tags anywhere under the shell assert and wreck the transition.
    App-side rule (documented in the README): give FABs explicit
    `heroTag`s (or `null`) when several coexist under one page.
-9. **Crossing motion is discrete-only, and the offstage bridge is the
-   route's handoff.** A breakpoint crossing animates only when its
-   one-frame width delta reaches `_discreteResizeDelta` (fold /
-   rotation / split-snap); continuous drags cut — animating against an
-   active resize fights the hand. Inline/overlay reuse the slide
-   controller (start at the old divider fraction, settle to full).
-   Route mode drops `instantEntrance` and lets the REAL entrance play
-   over the LIST — the bridge goes `Offstage` for the handoff frame:
-   still the detail key's holder (a keyless frame unmounts the element)
-   but invisible, so the entrance never slides over a copy of itself.
+9. **Crossings animate the ARRANGEMENT, never the tracking — and the
+   offstage bridge is the route's handoff.** Pane geometry follows a
+   window drag with zero motion (a lagging pane fights the hand); the
+   arrangement flip at the breakpoint animates on EVERY crossing, drag
+   or jump alike — the Compose-canonical pane motion. Into compact:
+   inline/overlay reuse the slide controller (start at the old divider
+   fraction, settle to full); route mode drops `instantEntrance` and
+   lets the REAL entrance play over the LIST — the bridge goes
+   `Offstage` for the handoff frame: still the detail key's holder (a
+   keyless frame unmounts the element) but invisible, so the entrance
+   never slides over a copy of itself. Into expanded (every mode): the
+   detail starts full width — for route mode this makes the instant
+   route removal seamless, the pane's first frame matches the route's
+   last — and `_expandEntryController` slides the list in, scaling only
+   the RENDERED list width (the width model keeps real geometry; the
+   rebuild rides an AnimatedBuilder, never a setState listener, which
+   would fire during build when a crossing frame seeds the value).
    Hidden layouts (paint-probe false) always take the instant path — an
    entrance nobody watches is wasted, and the re-show contract expects
-   instant.
+   instant. A first build is never a crossing (`_hasBuiltOnce`) — deep
+   links render settled.
 10. **`didUpdateWidget` mirrors initState's per-mode wiring.** Mode flips
    happen on LIVE layouts (settings screens exist). Entering route mode
    must attach the paint-probe listener — it IS the re-show chain; a

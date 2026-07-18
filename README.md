@@ -149,12 +149,13 @@ All three modes keep the state guarantee across resizes. They differ in what the
 | Page's snackbars / FABs while open | visible | hidden behind the detail | re-home into the detail's `Scaffold`, like normal navigation |
 | Screen readers see covered content | no — excluded while open | no — blocked while open | no — it's a page |
 | Escape dismisses (desktop) | yes, when focus is in the detail | yes, when focus is in the detail | yes — the route's own `DismissIntent` |
-| Discrete breakpoint jump (fold, rotation) | detail grows out of its pane | detail grows out of its pane | the route's real entrance plays |
+| Crossing into compact, detail open | detail grows out of its pane | detail grows out of its pane | the route's real entrance plays |
+| Crossing into expanded, detail open | list slides in beside the detail | list slides in beside the detail | list slides in beside the detail |
 | Hero discipline (`heroTag`s) | not needed | not needed | needed |
 
 Rule of thumb: `inline` when the surrounding chrome should stay present, `overlay` for a full-screen feel without real navigation, `route` when the detail should behave like a native page and inherit every platform back-gesture convention as it evolves. The per-value doc comments on `CompactDetailMode` carry the full contracts.
 
-Breakpoint crossings distinguish HOW the window changed: a continuous drag tracks your hand with a clean cut (animating against an active resize fights the user), while a discrete jump — fold/unfold, rotation, split-screen snap — gets crossing motion in every mode.
+Breakpoint crossings animate the pane re-arrangement in every mode — fold/unfold, rotation, split-screen snap, or dragging the window edge across the threshold. Only the pane geometry itself tracks the drag without motion (a lagging pane would fight your hand); the arrangement flip is always animated, the way Compose's canonical scaffolds and desktop sidebars behave.
 
 ### Sizing the panes
 
