@@ -32,6 +32,7 @@ export 'src/core/split/adaptive_split.dart';
 // Core — shared configuration + vocabulary
 export 'src/core/shared/adaptive_layout_config.dart';
 export 'src/core/shared/divider_builder.dart';
+export 'src/core/shared/expanded_entry_style.dart';
 export 'src/core/shared/pane_anchor.dart';
 export 'src/core/shared/pane_config.dart';
 export 'src/core/shared/pane_resize_mode.dart';

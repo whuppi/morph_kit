@@ -1,3 +1,6 @@
+import 'package:flutter/foundation.dart';
+
+import 'package:adaptive_layouts/src/core/shared/expanded_entry_style.dart';
 import 'package:adaptive_layouts/src/core/shared/pane_anchor.dart';
 import 'package:adaptive_layouts/src/core/shared/pane_resize_mode.dart';
 
@@ -23,6 +26,7 @@ class PaneConfig {
     this.anchors = const [],
     this.initialAnchorIndex = 1,
     this.resizeMode = PaneResizeMode.ratio,
+    this.entryStyle = ExpandedEntryStyle.reveal,
   });
 
   /// Default width of the list pane in logical pixels.
@@ -48,9 +52,39 @@ class PaneConfig {
   /// How pane width is stored after dragging.
   final PaneResizeMode resizeMode;
 
+  /// How the list pane arrives when a breakpoint crossing enters the
+  /// expanded layout with an open detail.
+  final ExpandedEntryStyle entryStyle;
+
   /// Sensible defaults for a standard list-detail layout.
   static const standard = PaneConfig();
 
   /// Standard defaults with list-detail anchor points.
   static const withAnchors = PaneConfig(anchors: PaneAnchor.listDetail);
+
+  // Value equality: layouts compare configs to decide whether to REBUILD
+  // their width model. Identity comparison resets the user's dragged
+  // divider on every rebuild for apps that construct the config inline.
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PaneConfig &&
+          other.defaultListWidth == defaultListWidth &&
+          other.minListWidth == minListWidth &&
+          other.maxListRatio == maxListRatio &&
+          listEquals(other.anchors, anchors) &&
+          other.initialAnchorIndex == initialAnchorIndex &&
+          other.resizeMode == resizeMode &&
+          other.entryStyle == entryStyle;
+
+  @override
+  int get hashCode => Object.hash(
+    defaultListWidth,
+    minListWidth,
+    maxListRatio,
+    Object.hashAll(anchors),
+    initialAnchorIndex,
+    resizeMode,
+    entryStyle,
+  );
 }

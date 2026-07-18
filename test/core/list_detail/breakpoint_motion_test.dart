@@ -144,6 +144,51 @@ void main() {
     });
   }
 
+  for (final (style, expectation) in [
+    (ExpandedEntryStyle.reveal, 'final width throughout — no reflow'),
+    (ExpandedEntryStyle.resize, 'growing widths — reflows as it arrives'),
+  ]) {
+    testWidgets('${style.name} entry gives the list $expectation', (
+      tester,
+    ) async {
+      final widths = <double>[];
+      await pumpApp(
+        tester,
+        Material(
+          child: ListDetailLayout<String>(
+            paneConfig: PaneConfig(entryStyle: style),
+            listBuilder: (context, selectedId, onSelect) => LayoutBuilder(
+              builder: (context, constraints) {
+                widths.add(constraints.maxWidth);
+                return TextButton(
+                  onPressed: () => onSelect('a'),
+                  child: const Text('item-a'),
+                );
+              },
+            ),
+            detailBuilder: (context, id, mode, onDismiss) =>
+                Text('detail-$id (${mode.name})'),
+            emptyStateBuilder: (context) => const Text('empty'),
+          ),
+        ),
+        size: const Size(500, 800),
+      );
+      await tester.tap(find.text('item-a'));
+      await tester.pumpAndSettle();
+
+      widths.clear();
+      tester.view.physicalSize = const Size(1000, 800);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 40));
+      await tester.pump(const Duration(milliseconds: 40));
+      await tester.pumpAndSettle();
+
+      final finalWidth = widths.last;
+      final reflowed = widths.any((w) => w < finalWidth - 0.01);
+      expect(reflowed, style == ExpandedEntryStyle.resize);
+    });
+  }
+
   testWidgets('route: crossing into expanded slides the list in seamlessly', (
     tester,
   ) async {

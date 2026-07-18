@@ -67,13 +67,17 @@ class PaneAnchor {
     PaneAnchor.proportion(1.0),
   ];
 
+  // NaN is the "unused" sentinel and NaN == NaN is false — plain field
+  // comparison would make every offset anchor unequal to itself.
+  static bool _sameField(double a, double b) => (a.isNaN && b.isNaN) || a == b;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is PaneAnchor &&
           runtimeType == other.runtimeType &&
-          proportion == other.proportion &&
-          startOffset == other.startOffset;
+          _sameField(proportion, other.proportion) &&
+          _sameField(startOffset, other.startOffset);
 
   @override
   int get hashCode => Object.hash(proportion, startOffset);

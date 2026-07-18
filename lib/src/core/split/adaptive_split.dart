@@ -165,7 +165,10 @@ class _AdaptiveSplitState extends State<AdaptiveSplit>
   @override
   void didUpdateWidget(AdaptiveSplit oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!identical(widget.paneConfig, oldWidget.paneConfig)) {
+    // Value comparison, not identity: apps construct configs inline in
+    // build, and resetting the model on every rebuild would erase the
+    // user's dragged divider position.
+    if (widget.paneConfig != oldWidget.paneConfig) {
       _settleController.stop();
       _paneWidth = PaneWidthModel(
         widget.paneConfig,

@@ -255,13 +255,20 @@ The machinery in `list_detail_layout.dart` holds:
 
 1. Add the field to the right pure-data class (`PaneConfig`,
    `CompactConfig`) with a default that preserves current behavior.
-2. Wire it where it acts. If it affects pane width, it goes through
+2. **Add the field to `==` and `hashCode` when the class has them**
+   (`PaneConfig` does). A field missing from equality makes two different
+   configs compare equal — the layout then ignores the change at runtime.
+   Never compare configs by `identical`: apps construct them inline in
+   `build`, and identity comparison resets user state (the dragged
+   divider) on every rebuild. Watch `double.nan` sentinel fields —
+   NaN == NaN is false (`PaneAnchor` carries the fix).
+3. Wire it where it acts. If it affects pane width, it goes through
    `PaneWidthModel` — never inline width math in a widget (the two widgets
    must stay identical in resize behavior).
-3. If a widget must react to the field changing at runtime, handle it in
+4. If a widget must react to the field changing at runtime, handle it in
    `didUpdateWidget` (see the `paneConfig` reset there).
-4. Unit-test the model change; widget-test the visible effect.
-5. **No decorative fields.** A config field with no behavior behind it is a
+5. Unit-test the model change; widget-test the visible effect.
+6. **No decorative fields.** A config field with no behavior behind it is a
    lie — this package once shipped `anchors` / `resizeMode` / `isSettling`
    unimplemented; they're real now. Don't regress the standard.
 

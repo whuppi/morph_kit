@@ -24,25 +24,43 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
   Widget _buildExpandedLayoutInner(BoxConstraints constraints) {
     final availableWidth = constraints.maxWidth;
     _lastExpandedWidth = availableWidth;
-    // The expand-entry animation scales the RENDERED list width only —
-    // the width model itself is untouched, so dividers and anchors keep
-    // their real geometry the moment the entry settles.
+    // The expand-entry animation scales the list's SLOT only — the width
+    // model is untouched, so dividers and anchors keep their real
+    // geometry the moment the entry settles.
     final entry = _expandEntryController.isAnimating
         ? widget.compactConfig.curve.transform(_expandEntryController.value)
         : 1.0;
-    final listWidth = _paneWidth.width(availableWidth) * entry;
+    final finalListWidth = _paneWidth.width(availableWidth);
+    final listWidth = finalListWidth * entry;
 
     final selectedId = _controller.selectedId;
     final dividerBuilder = widget.dividerBuilder;
+
+    Widget list = widget.listBuilder(context, selectedId, _handleSelect);
+    if (entry < 1.0 &&
+        widget.paneConfig.entryStyle == ExpandedEntryStyle.reveal) {
+      // Reveal (default): the arriving list is laid out at its FINAL
+      // width and slides in clipped — its content never reflows during
+      // the entry. The yielding detail resizes live instead: its first
+      // frame is exactly the full-width layout compact just showed, so
+      // there is no jump, and native content panes reflow the same way
+      // under a sliding sidebar. `ExpandedEntryStyle.resize` skips the
+      // wrap: the list lays out at the animated slot width and reflows.
+      list = ClipRect(
+        child: OverflowBox(
+          minWidth: finalListWidth,
+          maxWidth: finalListWidth,
+          alignment: AlignmentDirectional.centerEnd,
+          child: list,
+        ),
+      );
+    }
 
     return Stack(
       children: [
         Row(
           children: [
-            SizedBox(
-              width: listWidth,
-              child: widget.listBuilder(context, selectedId, _handleSelect),
-            ),
+            SizedBox(width: listWidth, child: list),
             Expanded(
               // While a route (active or exiting) holds the detail key, the
               // pane leaves its slot empty — exactly one key holder per

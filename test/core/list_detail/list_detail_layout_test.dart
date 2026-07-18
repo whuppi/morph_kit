@@ -116,6 +116,42 @@ void main() {
       );
     });
 
+    testWidgets(
+      'divider position survives compact spells and equal-value config '
+      'rebuilds',
+      (tester) async {
+        // Non-const configs: the inline-construction shape every app has.
+        await pumpApp(
+          tester,
+          buildLayout(paneConfig: PaneConfig()),
+          size: expanded,
+        );
+        final before = tester.getSize(find.byKey(const Key('list'))).width;
+        await tester.dragFrom(Offset(before, 400), const Offset(-100, 0));
+        await tester.pumpAndSettle();
+        final dragged = tester.getSize(find.byKey(const Key('list'))).width;
+        expect(dragged, isNot(before));
+
+        // Rebuild with a NEW but value-equal config instance — must NOT
+        // reset the width model (identity comparison did).
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Directionality(
+              textDirection: TextDirection.ltr,
+              child: buildLayout(paneConfig: PaneConfig()),
+            ),
+          ),
+        );
+        await resizeWindow(tester, compact);
+        await resizeWindow(tester, expanded);
+
+        expect(
+          tester.getSize(find.byKey(const Key('list'))).width,
+          closeTo(dragged, 1),
+        );
+      },
+    );
+
     testWidgets('divider settles to the nearest anchor after a drag', (
       tester,
     ) async {

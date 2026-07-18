@@ -113,6 +113,7 @@ class PackageSettings extends ChangeNotifier {
   DividerStyle divider = DividerStyle.handle;
   PaneResizeMode resizeMode = PaneResizeMode.ratio;
   bool anchorsEnabled = false;
+  ExpandedEntryStyle entryStyle = ExpandedEntryStyle.reveal;
   double expandedBreakpoint = 720;
   bool handleBackGesture = true;
   int slideDurationMs = 300;
@@ -132,6 +133,7 @@ class PackageSettings extends ChangeNotifier {
 
   PaneConfig get paneConfig => PaneConfig(
     resizeMode: resizeMode,
+    entryStyle: entryStyle,
     anchors: anchorsEnabled ? PaneAnchor.listDetail : const [],
   );
 
@@ -298,6 +300,14 @@ class PackageSettingsPanel extends StatelessWidget {
               label: 'Divider snap anchors',
               value: s.anchorsEnabled,
               onChanged: (v) => s.update((s) => s.anchorsEnabled = v),
+            ),
+            _choice(
+              context: context,
+              label: 'Expand-entry list style',
+              values: ExpandedEntryStyle.values,
+              value: s.entryStyle,
+              name: (ExpandedEntryStyle v) => v.name,
+              onChanged: (v) => s.update((s) => s.entryStyle = v),
             ),
             _section(context, 'Adaptive modal'),
             _toggle(

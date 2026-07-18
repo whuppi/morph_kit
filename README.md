@@ -157,6 +157,10 @@ Rule of thumb: `inline` when the surrounding chrome should stay present, `overla
 
 Breakpoint crossings animate the pane re-arrangement in every mode — fold/unfold, rotation, split-screen snap, or dragging the window edge across the threshold. Only the pane geometry itself tracks the drag without motion (a lagging pane would fight your hand); the arrangement flip is always animated, the way Compose's canonical scaffolds and desktop sidebars behave.
 
+Entering expanded, the arriving list is laid out at its final width and slides in clipped — content never reflows mid-entry, the way a desktop sidebar arrives. Prefer the list to lay out live and grow into its pane instead? `PaneConfig(entryStyle: ExpandedEntryStyle.resize)`.
+
+The divider remembers. A dragged divider position survives compact spells, window resizes, and rebuilds — `PaneConfig` compares by value, so constructing it inline in `build` never resets the width model.
+
 ### Sizing the panes
 
 `PaneConfig` is pure data; the divider visual is a builder you pick or write:

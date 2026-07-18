@@ -10,6 +10,7 @@ import 'package:adaptive_layouts/src/core/list_detail/list_detail_controller.dar
 import 'package:adaptive_layouts/src/core/list_detail/paint_visibility_detector.dart';
 import 'package:adaptive_layouts/src/core/shared/adaptive_layout_config.dart';
 import 'package:adaptive_layouts/src/core/shared/divider_builder.dart';
+import 'package:adaptive_layouts/src/core/shared/expanded_entry_style.dart';
 import 'package:adaptive_layouts/src/core/shared/pane_config.dart';
 import 'package:adaptive_layouts/src/core/shared/pane_width_model.dart';
 
@@ -401,7 +402,10 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
     if (widget.compactConfig.curve != oldWidget.compactConfig.curve) {
       _slideAnimation = _buildSlideAnimation();
     }
-    if (!identical(widget.paneConfig, oldWidget.paneConfig)) {
+    // Value comparison, not identity: apps construct configs inline in
+    // build, and resetting the model on every rebuild would erase the
+    // user's dragged divider position.
+    if (widget.paneConfig != oldWidget.paneConfig) {
       _settleController.stop();
       _paneWidth = PaneWidthModel(
         widget.paneConfig,
