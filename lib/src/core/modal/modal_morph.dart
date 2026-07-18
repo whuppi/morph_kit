@@ -183,11 +183,20 @@ class ModalMorphFlight {
   bool _isFullBleed = false;
   bool _widthSampled = false;
 
-  void _recordSample(Size size, double containerWidth) {
-    if (_widthSampled) return;
+  /// Notifies when a natural-width sample lands, so the placeholder
+  /// rebuilds with it — the size channel alone can't carry this: the
+  /// tight-laid size often doesn't change when the sample does.
+  final ValueNotifier<int> sampleRevision = ValueNotifier<int>(0);
+
+  /// Called synchronously from the measurer's layout pass; the
+  /// notification is deferred out of layout.
+  void _recordSample(Size natural, double containerWidth) {
     _widthSampled = true;
-    _isFullBleed = size.width >= containerWidth - 0.5;
-    _naturalWidth = size.width;
+    _isFullBleed = natural.width >= containerWidth - 0.5;
+    _naturalWidth = natural.width;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      sampleRevision.value++;
+    });
   }
 
   late final AnimationController _controller;
@@ -234,6 +243,9 @@ class ModalMorphFlight {
     _end = end;
     targetMode = mode;
     _lastTargetRect = null;
+    // The builder now produces the OTHER form's content, whose width
+    // behavior may differ — resample it (invisibly, in layout).
+    _widthSampled = false;
     unawaited(_controller.forward(from: 0));
     _entry?.markNeedsBuild();
   }
@@ -306,17 +318,19 @@ class ModalMorphFlight {
                         padding: EdgeInsets.only(top: inset),
                         child: OverflowBox(
                           alignment: Alignment.topCenter,
-                          // First layout is loose to sample the content's
-                          // natural width; then tight so the content
-                          // shrinks/grows WITH the container instead of
-                          // jumping to its destination width at takeoff.
-                          minWidth: _widthSampled ? rect.width : 0,
+                          // Always tight: the content shrinks/grows WITH
+                          // the container instead of jumping to its own
+                          // width. The natural-width sample is taken by
+                          // the measurer in a loose pre-pass inside the
+                          // same layout, so no loose frame ever paints.
+                          minWidth: rect.width,
                           maxWidth: rect.width,
                           minHeight: 0,
                           maxHeight: maxHeight,
                           child: _MeasureSize(
+                            sampleNeeded: !_widthSampled,
+                            onSample: _recordSample,
                             onSize: (size) {
-                              _recordSample(size, rect.width);
                               if (contentSize.value != size) {
                                 contentSize.value = size;
                               }
@@ -368,33 +382,54 @@ class _FlightTickerProvider implements TickerProvider {
 }
 
 /// Reports the child's laid-out size, deferred to post-frame (notifying
-/// listeners during layout is illegal).
+/// listeners during layout is illegal) — and, when [sampleNeeded], first
+/// lays the child out LOOSE in the same layout pass to record its natural
+/// width. The loose pass never paints, so sampling causes no visible
+/// wrong-width frame.
 class _MeasureSize extends SingleChildRenderObjectWidget {
-  const _MeasureSize({required this.onSize, super.child});
+  const _MeasureSize({
+    required this.sampleNeeded,
+    required this.onSample,
+    required this.onSize,
+    super.child,
+  });
 
+  final bool sampleNeeded;
+  final void Function(Size natural, double containerWidth) onSample;
   final ValueChanged<Size> onSize;
 
   @override
   RenderObject createRenderObject(BuildContext context) =>
-      _RenderMeasureSize(onSize);
+      _RenderMeasureSize(sampleNeeded, onSample, onSize);
 
   @override
   void updateRenderObject(
     BuildContext context,
     _RenderMeasureSize renderObject,
   ) {
-    renderObject.onSize = onSize;
+    renderObject
+      ..sampleNeeded = sampleNeeded
+      ..onSample = onSample
+      ..onSize = onSize;
   }
 }
 
 class _RenderMeasureSize extends RenderProxyBox {
-  _RenderMeasureSize(this.onSize);
+  _RenderMeasureSize(this.sampleNeeded, this.onSample, this.onSize);
 
+  bool sampleNeeded;
+  void Function(Size natural, double containerWidth) onSample;
   ValueChanged<Size> onSize;
   Size? _lastReported;
 
   @override
   void performLayout() {
+    final child = this.child;
+    if (child != null && sampleNeeded && constraints.maxWidth.isFinite) {
+      child.layout(constraints.loosen(), parentUsesSize: true);
+      onSample(child.size, constraints.maxWidth);
+      sampleNeeded = false;
+    }
     super.performLayout();
     if (size == _lastReported) return;
     _lastReported = size;

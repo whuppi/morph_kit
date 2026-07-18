@@ -361,9 +361,13 @@ class _ModalScope<T> extends StatelessWidget {
           // the ghost route omits, so the placeholder sits exactly where
           // the content will land.
           final inset = session._contentInsetFor(mode, Theme.of(context));
-          final placeholder = ValueListenableBuilder<Size>(
-            valueListenable: flight.contentSize,
-            builder: (context, size, _) {
+          final placeholder = ListenableBuilder(
+            listenable: Listenable.merge([
+              flight.contentSize,
+              flight.sampleRevision,
+            ]),
+            builder: (context, _) {
+              final size = flight.contentSize.value;
               // Width comes from the flight's one-time natural-width
               // sample: self-sized content keeps its own width in either
               // form; full-bleed content takes the slot's width. The live

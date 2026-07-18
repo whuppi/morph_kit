@@ -108,11 +108,18 @@ With the container transform (`ModalConfig.morph`, default on), three more:
    destination-width layout makes the narrower container visibly crop it.
    The width circularity that tight-following would otherwise cause
    (placeholder width from content width from container width) is broken
-   by sampling: the FIRST flight layout is loose, recording the content's
-   natural width and whether it is full-bleed; every later layout is
-   tight, and the placeholder's width is the frozen sample (full-bleed →
-   the slot decides via `double.infinity`; self-sized → the sampled
-   width). Only the HEIGHT flows from the live measurement. Related: both
+   by sampling: the measurer lays the child LOOSE as a pre-pass inside
+   the same layout (never painted — a painted loose frame is a visible
+   narrow-flash at takeoff), records the natural width and whether the
+   content is full-bleed, then lays tight for real. The placeholder's
+   width is that frozen sample (full-bleed → the slot decides via
+   `double.infinity`; self-sized → the sampled width), delivered through
+   `sampleRevision` — the size channel alone can't carry it, since the
+   tight-laid size often doesn't change when the sample does. A retarget
+   switches the target form, so it marks the sample stale and the next
+   layout resamples — a stale sample is the sheet landing at the
+   dialog's width and snapping wide. Only the HEIGHT flows from the live
+   measurement. Related: both
    resting forms pass `Clip.antiAlias` so corner rendering matches the
    flight's clipped surface; reverting to Material's default `Clip.none`
    makes content near the corners pop square at handoff.

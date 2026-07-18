@@ -299,6 +299,55 @@ void main() {
     );
   });
 
+  testWidgets('fast back-and-forth still lands the sheet at full width', (
+    tester,
+  ) async {
+    await pumpApp(tester, _opener(), size: const Size(1000, 800));
+    await _open(tester);
+
+    // Flip narrow → wide → narrow while flights are mid-air: each
+    // retarget switches the target form, and the natural-width sample
+    // must be retaken for the new form's content — a stale sample makes
+    // the sheet land at the dialog's width, then snap wide.
+    await _resizeIntoFlight(tester, const Size(500, 800));
+    await _resizeIntoFlight(tester, const Size(1000, 800));
+    await _resizeIntoFlight(tester, const Size(500, 800));
+    for (var i = 0; i < 5; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await tester.pump(const Duration(milliseconds: 250));
+    final sheetSurface = find
+        .descendant(
+          of: find.byType(BottomSheet),
+          matching: find.byType(Material),
+        )
+        .first;
+    final flightEndRect = tester.getRect(sheetSurface);
+
+    await tester.pumpAndSettle();
+    expect(tester.getRect(sheetSurface), flightEndRect);
+    expect(flightEndRect.width, 500);
+  });
+
+  testWidgets('no narrow flash at takeoff — sampling never paints', (
+    tester,
+  ) async {
+    await pumpApp(tester, _opener(), size: const Size(500, 800));
+    await _open(tester);
+
+    tester.view.physicalSize = const Size(1000, 800);
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+
+    // Immediately after takeoff the content must still be near the
+    // sheet's last width — a painted loose-sample frame shows up here as
+    // the dialog-form content flashing to its own 300.
+    expect(tester.getRect(find.byType(CounterPane)).width, greaterThan(500));
+
+    await tester.pumpAndSettle(); // land the flight; free its ticker
+  });
+
   testWidgets('the flight paints exactly like the chrome it becomes', (
     tester,
   ) async {
