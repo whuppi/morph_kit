@@ -120,8 +120,9 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
           ],
         ),
         // Divider — visual (if builder provided) or invisible drag zone.
-        // In listOnly the seam only exists once the pane has settled.
-        if (!listOnly || (pane == 1.0 && detailId != null))
+        // In listOnly it exists whenever the pane does, riding the
+        // animated seam — appearing only after settle reads as a pop-in.
+        if (!listOnly || detailId != null)
           PositionedDirectional(
             start: listWidth - 12, // 24px hit area centered on the border
             top: 0,
