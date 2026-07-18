@@ -181,7 +181,7 @@ Wide: side by side with the same draggable divider (primary at the start or end 
 
 ### A modal that swaps between dialog and bottom sheet
 
-`showAdaptiveModal` presents a real Material dialog on wide windows and a real Material bottom sheet on narrow ones — `DialogRoute` and `ModalBottomSheetRoute` underneath, so your `DialogTheme` / `BottomSheetTheme`, Material's drag physics, and back handling all apply. Resize across the breakpoint while it is open and the form swaps live, keeping the content widget's state — a half-typed form field survives.
+`showAdaptiveModal` presents a real Material dialog on wide windows and a real Material bottom sheet on narrow ones — `DialogRoute` and `ModalBottomSheetRoute` underneath, so your `DialogTheme` / `BottomSheetTheme`, Material's drag physics, and back handling all apply. Resize across the breakpoint while it is open and the modal plays a container transform: the surface glides and reshapes from one form to the other with the live content inside, and a half-typed form field survives the trip. `ModalConfig(morph: false)` swaps instantly instead.
 
 ```dart
 final choice = await showAdaptiveModal<String>(
@@ -231,6 +231,8 @@ An `OverlayPortal` paints in the Overlay, outside its parent — so a parent tha
 <summary><b>🧩 Why the modal uses real Material routes</b></summary>
 
 The pane layouts own their navigation feel in exchange for the state guarantee. The modal gets both: each form is Flutter's own route (`DialogRoute`, `ModalBottomSheetRoute`), so theming, drag-to-dismiss physics, and back handling are Material's — and framework improvements arrive with Flutter upgrades. On a breakpoint crossing the active route is atomically replaced in a single frame, and since every route of a Navigator lives in one Overlay — one element tree — the keyed content reparents into the new route instead of rebuilding. A session object proxies the pop result across swaps, so the caller's awaited future never notices.
+
+The swap animation is Material's container-transform pattern with one upgrade Material itself doesn't have: `Hero` and `OpenContainer` both rebuild the content they animate, while this flight carries the *live element* — the surface lerps rect, shape, color, and elevation between the two forms with your widget's state intact inside it. The destination route lays out a same-size placeholder whose live rect steers the landing each frame, so keyboard insets and content reflow are tracked automatically.
 
 </details>
 

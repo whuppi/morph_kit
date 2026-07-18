@@ -85,6 +85,23 @@ crosses the breakpoint. The swap machinery in
    the width may have crossed back, so the target mode is re-derived — never
    captured at schedule time.
 
+With the container transform (`ModalConfig.morph`, default on), three more:
+
+4. **Exactly one holder of the content key per frame.** While a flight is
+   in the air the routes build a placeholder instead of the keyed content
+   (`_morphing` drives the branch). Flight start and flight end each move
+   the key in one synchronous block. Two holders in one frame is a
+   duplicate-key crash; zero is a silent state reset.
+5. **The subtree from the keyed node down is identical in every host.**
+   The flight's `Builder` (for the captured-themes context) sits ABOVE the
+   `KeyedSubtree` — insert anything between the key and the user's content
+   in one host but not the others and the reparent degrades into a rebuild.
+6. **A dismissal mid-flight lands the content before the result completes.**
+   The `popped` handler calls `_endFlight()` first, so the exiting route
+   shows the content during its exit animation and the flight's ticker is
+   disposed. Completing the result while a flight is airborne leaks the
+   ticker and pops an empty route.
+
 ## §4 — Adding a component (divider / empty state)
 
 1. Create the file under `src/components/{dividers|empty_states}/`.

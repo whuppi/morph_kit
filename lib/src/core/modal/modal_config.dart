@@ -4,8 +4,9 @@ import 'package:flutter/widgets.dart';
 ///
 /// Deliberately thin: the modal is presented by Flutter's own `DialogRoute`
 /// and `ModalBottomSheetRoute`, so chrome, theming, drag physics, and
-/// accessibility all come from Material. These fields only forward to the
-/// matching parameters on those routes.
+/// accessibility all come from Material. Most fields only forward to the
+/// matching parameters on those routes; the `morph*` fields drive the
+/// container transform played when a resize swaps the two forms.
 ///
 /// ```dart
 /// showAdaptiveModal(
@@ -23,6 +24,9 @@ class ModalConfig {
     this.isScrollControlled = true,
     this.enableDrag = true,
     this.showDragHandle,
+    this.morph = true,
+    this.morphDuration = const Duration(milliseconds: 350),
+    this.morphCurve = Curves.easeInOutCubicEmphasized,
   });
 
   /// Whether tapping the barrier dismisses the modal. Both forms.
@@ -51,4 +55,15 @@ class ModalConfig {
   /// Forwards to `ModalBottomSheetRoute.showDragHandle`;
   /// `null` defers to `BottomSheetThemeData.showDragHandle`.
   final bool? showDragHandle;
+
+  /// Whether a form swap plays a container transform — the surface glides
+  /// and reshapes from one form's geometry to the other's, with the live
+  /// content inside. When false, the swap is an instant cut.
+  final bool morph;
+
+  /// Duration of the container transform.
+  final Duration morphDuration;
+
+  /// Curve of the container transform.
+  final Curve morphCurve;
 }

@@ -47,7 +47,7 @@ while an active row is not `DONE` or `WONT_DO`. Statuses: `DONE` ·
 | Result future survives swaps | DONE | Session completer with route-identity guard |
 | Breakpoint resolution | DONE | param > inherited `AdaptiveLayoutConfig` > 720, resolved at call time |
 | Config forwarding | DONE | barrier, safe area, scroll control, drag, drag handle |
-| Animated cross-form morph | WONT_DO | A route swap is a cut by design; real route semantics were chosen over a custom animatable chrome |
+| Animated cross-form morph (container transform) | DONE | Flight overlay carries the LIVE content between the real routes; placeholder-tracked landing; retarget + mid-flight-dismiss handled; `morph: false` restores the cut |
 
 ## Pane system (shared)
 

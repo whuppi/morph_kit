@@ -37,7 +37,8 @@ lib/
         ├── modal/
         │   ├── adaptive_modal.dart            # showAdaptiveModal + route-swap session
         │   ├── modal_config.dart              # forwards to the Material routes
-        │   └── modal_layout_mode.dart         # dialog / sheet
+        │   ├── modal_layout_mode.dart         # dialog / sheet
+        │   └── modal_morph.dart               # container-transform flight (internal)
         ├── shared/
         │   ├── adaptive_layout_config.dart    # inherited breakpoint config
         │   ├── divider_builder.dart           # shared DividerBuilder typedef
@@ -93,7 +94,19 @@ atomically replaced (`removeRoute` + zero-entrance `push` in one frame) and
 the content element reparents into the new route under a stable `GlobalKey`.
 A session object proxies the pop result across swaps, so the caller's
 awaited future completes with the dismissal value no matter how many form
-changes happened. `ModalConfig` only forwards parameters to the two routes.
+changes happened. `ModalConfig` mostly forwards parameters to the two routes.
+
+By default the swap plays a **container transform** (Material's own name for
+the pattern): during the swap the live content mounts in a flight — an
+overlay entry above the routes — whose surface lerps rect, shape, color, and
+elevation from the outgoing form's geometry to the destination's. The
+destination route lays out a same-size placeholder whose LIVE rect is the
+flight's landing target, tracked every frame; the flight reports the
+content's laid-out size back to the placeholder, so at landing all three
+agree and the handoff is pixel-clean. Dismissal mid-flight lands the content
+into the exiting route immediately; a second breakpoint crossing retargets
+the flight from its current visual state. `ModalConfig(morph: false)`
+restores the instant cut.
 
 ### `ListDetailController<T>`
 
