@@ -37,6 +37,8 @@ export 'src/core/shared/expanded_entry_style.dart';
 export 'src/core/shared/pane_anchor.dart';
 export 'src/core/shared/pane_collapse.dart';
 export 'src/core/shared/pane_config.dart';
+export 'src/core/shared/pane_divider_region.dart';
+export 'src/core/shared/pane_scope.dart';
 export 'src/core/shared/pane_resize_mode.dart';
 export 'src/core/shared/pane_width_memory.dart';
 

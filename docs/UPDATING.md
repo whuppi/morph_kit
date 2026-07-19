@@ -244,6 +244,43 @@ The machinery in `list_detail_layout.dart` holds:
    paint-only re-show (children reused across the tab switch), because
    a harness that rebuilds on tab switch masks a dead listener.
 
+## §4b — The divider interaction invariants (DO NOT BREAK)
+
+1. **All divider interactivity lives in `PaneDividerRegion`** — drag,
+   double-click reset, keyboard shortcuts, semantics. The layouts supply
+   callbacks; neither layout builds its own `GestureDetector` for the
+   divider. A new interaction goes into the region once and both widgets
+   get it.
+2. **Collapse mechanics are model state** (`PaneWidthModel.collapsed`,
+   VS Code spec: half-minimum threshold on the raw drag position,
+   `_cachedWidth` restore, spring-back short of the threshold). Widgets
+   never track their own collapsed flag.
+3. **`PaneSide` / `PaneCollapsible` are DIRECTIONAL in every public
+   surface** (config, `DividerState.collapsed`, `PaneScope`). The width
+   model works in model space (start = the measured pane).
+   `AdaptiveSplit` with an end-positioned primary translates at its
+   boundary: flipped `collapsible` into the model, flipped `collapsed` /
+   at-limit flags / Home-End targets out of it. `ListDetailLayout`'s
+   model space IS directional, no translation. Breaking this makes the
+   pull tab point the wrong way and `PaneScope` lie.
+4. **Collapsed pane content stays laid out at its minimum width** inside
+   `ClipRect` + `OverflowBox` (start pane clips at `minListWidth`, end
+   pane at `available * (1 - maxListRatio)`) — content never reflows
+   below its floor while the slot shrinks.
+5. **Programmatic collapse/restore snap instantly**; only the drag path
+   animates. `_settleToWidth` is the single settle primitive — anchors,
+   Home/End, and double-click reset all route through it.
+6. **Keyboard steps are micro-drags** through `_handleDividerDragUpdate`,
+   so RTL (and split's primary-position inversion) apply identically to
+   pointer and keyboard. Never add a parallel resize path.
+7. **Semantics carry `value` + `increasedValue` + `decreasedValue`
+   together** — Flutter asserts if increase/decrease actions exist with a
+   `value` but no stepped values. The share strings come from the
+   layout's `_paneSharePercent`.
+8. **The divider stays grabbable when parked.** The region's position is
+   clamped fully on-screen at `collapsedSize`; a collapsed pane must
+   always be recoverable by drag alone.
+
 ## §5 — Adding a component (divider / empty state)
 
 1. Create the file under `src/components/{dividers|empty_states}/`.

@@ -57,8 +57,11 @@ class _HandleDividerState extends State<HandleDivider> {
     final state = widget.state;
 
     if (state.collapsed != null) {
-      return _PullTab(collapsed: state.collapsed!, hovering: _isHovering,
-          onHover: (v) => setState(() => _isHovering = v));
+      return _PullTab(
+        collapsed: state.collapsed!,
+        hovering: _isHovering,
+        onHover: (v) => setState(() => _isHovering = v),
+      );
     }
 
     final isActive = _isHovering || state.isDragging || state.isFocused;

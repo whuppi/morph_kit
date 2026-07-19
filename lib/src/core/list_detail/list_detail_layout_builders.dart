@@ -88,7 +88,8 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
     }
 
     // The end pane's floor mirrors the start pane's ceiling.
-    final minDetailWidth = availableWidth * (1 - widget.paneConfig.maxListRatio);
+    final minDetailWidth =
+        availableWidth * (1 - widget.paneConfig.maxListRatio);
 
     Widget detailSlot;
     if (detailId != null) {
@@ -177,17 +178,30 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
             ),
             top: 0,
             bottom: 0,
-            child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onHorizontalDragStart: (_) => _handleDividerDragStart(),
-              onHorizontalDragUpdate: (d) =>
-                  _handleDividerDragUpdate(d.primaryDelta ?? 0),
-              onHorizontalDragEnd: (_) => _handleDividerDragEnd(),
-              child: SizedBox(
-                width: widget.paneConfig.dividerHitWidth,
-                child: dividerBuilder != null
-                    ? dividerBuilder(context, _dividerState(availableWidth))
-                    : null,
+            child: PaneDividerRegion(
+              hitWidth: widget.paneConfig.dividerHitWidth,
+              stateFor: (focused) =>
+                  _dividerState(availableWidth, isFocused: focused),
+              dividerBuilder: dividerBuilder,
+              onDragStart: _handleDividerDragStart,
+              onDragDelta: _handleDividerDragUpdate,
+              onDragEnd: _handleDividerDragEnd,
+              onStep: _handleDividerStep,
+              onToggleCollapse: _handleDividerToggleCollapse,
+              onJumpToMinimum: _handleDividerJumpToMinimum,
+              onJumpToMaximum: _handleDividerJumpToMaximum,
+              onReset: _handleDividerReset,
+              semanticsLabel: widget.paneConfig.dividerSemanticsLabel,
+              semanticsValue: _paneSharePercent(listWidth, 0, availableWidth),
+              semanticsIncreasedValue: _paneSharePercent(
+                listWidth,
+                PaneDividerRegion.keyboardStep,
+                availableWidth,
+              ),
+              semanticsDecreasedValue: _paneSharePercent(
+                listWidth,
+                -PaneDividerRegion.keyboardStep,
+                availableWidth,
               ),
             ),
           ),
@@ -343,8 +357,18 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
   // SHARED SLIDING DETAIL (used by inline and overlay compact modes)
   // ===========================================================================
 
+  /// Formats the start pane's share after [delta], clamped to the pane
+  /// limits, for the screen-reader value contract.
+  String _paneSharePercent(double width, double delta, double availableWidth) {
+    final clamped = (width + delta).clamp(
+      widget.paneConfig.minListWidth,
+      availableWidth * widget.paneConfig.maxListRatio,
+    );
+    return '${(clamped / availableWidth * 100).round()}%';
+  }
+
   /// The divider's interaction state for [DividerBuilder]s.
-  DividerState _dividerState(double availableWidth) {
+  DividerState _dividerState(double availableWidth, {bool isFocused = false}) {
     final collapsed = _paneWidth.collapsed;
     final width = _paneWidth.width(availableWidth);
     final max = availableWidth * widget.paneConfig.maxListRatio;
@@ -355,6 +379,7 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
           collapsed == null && width <= widget.paneConfig.minListWidth + 0.5,
       atMaximum: collapsed == null && width >= max - 0.5,
       collapsed: collapsed,
+      isFocused: isFocused,
     );
   }
 

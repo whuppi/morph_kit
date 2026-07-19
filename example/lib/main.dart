@@ -142,6 +142,8 @@ class PackageSettings extends ChangeNotifier {
   ExpandedEntryStyle entryStyle = ExpandedEntryStyle.reveal;
   PaneWidthMemory widthMemory = PaneWidthMemory.persist;
   ExpandedEmptyBehavior emptyBehavior = ExpandedEmptyBehavior.placeholder;
+  PaneCollapsible collapsible = PaneCollapsible.none;
+  bool collapseToIconRail = false;
   bool autoSelectFirst = false;
   double expandedBreakpoint = 720;
   bool handleBackGesture = true;
@@ -165,6 +167,8 @@ class PackageSettings extends ChangeNotifier {
     entryStyle: entryStyle,
     widthMemory: widthMemory,
     anchors: anchorsEnabled ? PaneAnchor.listDetail : const [],
+    collapsible: collapsible,
+    collapsedSize: collapseToIconRail ? 56 : 0,
   );
 
   CompactConfig get compactConfig => CompactConfig(
@@ -354,6 +358,19 @@ class PackageSettingsPanel extends StatelessWidget {
               value: s.emptyBehavior,
               name: (ExpandedEmptyBehavior v) => v.name,
               onChanged: (v) => s.update((s) => s.emptyBehavior = v),
+            ),
+            _choice(
+              context: context,
+              label: 'Collapsible panes (drag past the limit)',
+              values: PaneCollapsible.values,
+              value: s.collapsible,
+              name: (PaneCollapsible v) => v.name,
+              onChanged: (v) => s.update((s) => s.collapsible = v),
+            ),
+            _toggle(
+              label: 'Collapse to 56px icon rail (vs fully hidden)',
+              value: s.collapseToIconRail,
+              onChanged: (v) => s.update((s) => s.collapseToIconRail = v),
             ),
             _toggle(
               label: 'Auto-select first item (app-side recipe)',
@@ -2249,6 +2266,10 @@ class _TicketPaneState extends State<TicketPane> {
       widget.ticketId,
     );
 
+    // The hamburger recipe: when the list pane snap-collapses, the
+    // surviving detail pane reads PaneScope and offers a restore button.
+    final paneScope = PaneScope.maybeOf(context);
+
     return Scaffold(
       appBar: AppBar(
         leading: widget.mode == DetailLayoutMode.stacked
@@ -2256,7 +2277,13 @@ class _TicketPaneState extends State<TicketPane> {
                 icon: const Icon(Icons.arrow_back),
                 onPressed: widget.onDismiss,
               )
-            : null,
+            : (paneScope?.collapsed == PaneSide.start
+                  ? IconButton(
+                      icon: const Icon(Icons.menu),
+                      tooltip: 'Show list',
+                      onPressed: paneScope!.restore,
+                    )
+                  : null),
         automaticallyImplyLeading: false,
         title: Row(
           children: [

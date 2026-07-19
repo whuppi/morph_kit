@@ -210,6 +210,48 @@ PaneConfig(
 PaneConfig(resizeMode: PaneResizeMode.pixels)
 ```
 
+### Snap-collapse and the divider's keyboard
+
+Panes can collapse — force the divider past a pane's minimum and it snaps
+shut, VS Code style. Opt in per side:
+
+```dart
+PaneConfig(
+  collapsible: PaneCollapsible.start,  // none / start / end / both
+  collapsedSize: 56,                   // 0 hides fully; 56 keeps an icon rail
+)
+```
+
+The mechanics follow desktop split views: dragging past the limit by half
+the pane's minimum snaps it to `collapsedSize` with the pre-collapse width
+remembered; releasing short of that springs back. The parked divider stays
+grabbable (the shipped `HandleDivider` turns into a pull tab), and the
+surviving pane can offer its own affordance by reading `PaneScope`:
+
+```dart
+// Inside a detail pane — the hamburger recipe:
+final scope = PaneScope.maybeOf(context);
+if (scope?.collapsed == PaneSide.start)
+  IconButton(icon: const Icon(Icons.menu), onPressed: scope!.restore)
+```
+
+`PaneScope` also exposes `collapse(PaneSide)` for app-driven collapse
+buttons. Programmatic collapse/restore snap instantly; the drag path is
+the animated one.
+
+The divider itself follows the WAI-ARIA window-splitter pattern — it's
+focusable and screen-reader adjustable out of the box:
+
+| Input | Effect |
+|---|---|
+| Arrow left / right | Resize by 24px |
+| Enter | Collapse the allowed side / restore |
+| Home / End | Animate to the minimum / maximum |
+| Double click | Reset to the default width (restore first if collapsed) |
+| Screen reader | Adjustable element announcing the pane's share ("36%") |
+
+Localize the announcement via `PaneConfig(dividerSemanticsLabel: ...)`.
+
 For the wide layout's "nothing selected" area, pass any builder — or the shipped one:
 
 ```dart

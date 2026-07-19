@@ -36,6 +36,7 @@ class PaneConfig {
     this.dividerHitWidth = 24,
     this.collapsible = PaneCollapsible.none,
     this.collapsedSize = 0,
+    this.dividerSemanticsLabel = 'Pane divider',
   });
 
   /// Default width of the list pane in logical pixels.
@@ -87,6 +88,9 @@ class PaneConfig {
   /// (e.g. 48) keeps an icon-rail sliver visible.
   final double collapsedSize;
 
+  /// Screen-reader label for the divider. Localize by passing your own.
+  final String dividerSemanticsLabel;
+
   /// Sensible defaults for a standard list-detail layout.
   static const standard = PaneConfig();
 
@@ -112,7 +116,8 @@ class PaneConfig {
           other.settleCurve == settleCurve &&
           other.dividerHitWidth == dividerHitWidth &&
           other.collapsible == collapsible &&
-          other.collapsedSize == collapsedSize;
+          other.collapsedSize == collapsedSize &&
+          other.dividerSemanticsLabel == dividerSemanticsLabel;
 
   @override
   int get hashCode => Object.hash(
@@ -129,5 +134,6 @@ class PaneConfig {
     dividerHitWidth,
     collapsible,
     collapsedSize,
+    dividerSemanticsLabel,
   );
 }

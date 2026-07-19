@@ -14,6 +14,8 @@ import 'package:adaptive_layouts/src/core/shared/divider_builder.dart';
 import 'package:adaptive_layouts/src/core/shared/expanded_entry_style.dart';
 import 'package:adaptive_layouts/src/core/shared/pane_collapse.dart';
 import 'package:adaptive_layouts/src/core/shared/pane_config.dart';
+import 'package:adaptive_layouts/src/core/shared/pane_divider_region.dart';
+import 'package:adaptive_layouts/src/core/shared/pane_scope.dart';
 import 'package:adaptive_layouts/src/core/shared/pane_width_memory.dart';
 import 'package:adaptive_layouts/src/core/shared/pane_width_model.dart';
 
@@ -872,11 +874,15 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
 
   /// Animates the divider to the nearest anchor. No-op without anchors.
   void _settleToNearestAnchor() {
-    final availableWidth = _lastExpandedWidth;
-    final target = _paneWidth.snapTarget(availableWidth);
-    if (target == null) return;
+    final target = _paneWidth.snapTarget(_lastExpandedWidth);
+    if (target != null) _settleToWidth(target);
+  }
 
+  /// Animates the divider to [target] using the settle knobs.
+  void _settleToWidth(double target) {
+    final availableWidth = _lastExpandedWidth;
     final begin = _paneWidth.width(availableWidth);
+    if ((target - begin).abs() < 0.5) return;
     final curve = CurvedAnimation(
       parent: _settleController,
       curve: widget.paneConfig.settleCurve,
@@ -897,6 +903,77 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
       if (mounted) setState(() {});
     });
   }
+
+  // ===========================================================================
+  // EXPANDED LAYOUT — DIVIDER KEYBOARD / COLLAPSE ACTIONS
+  // ===========================================================================
+
+  /// Keyboard step: one micro-drag through the normal resize path, so RTL
+  /// correction and clamping apply identically to pointer drags.
+  void _handleDividerStep(double delta) {
+    if (_paneWidth.collapsed != null) return;
+    _settleController.stop();
+    _handleDividerDragUpdate(delta);
+  }
+
+  /// Collapses [side] instantly. Programmatic collapse (keyboard, app
+  /// buttons) snaps — the drag path is the only animated route in 1b.
+  void _collapsePane(PaneSide side) {
+    if (!_isExpanded || _paneWidth.collapsed != null) return;
+    if (!widget.paneConfig.collapsible.allows(side)) return;
+    _settleController.stop();
+    setState(() => _paneWidth.collapse(side, _lastExpandedWidth));
+  }
+
+  /// Restores a collapsed pane to its remembered width instantly.
+  void _restorePane() {
+    if (_paneWidth.collapsed == null) return;
+    setState(() => _paneWidth.restore(_lastExpandedWidth));
+  }
+
+  /// Enter on the focused divider: restore when collapsed, else collapse
+  /// the first side the config allows.
+  void _handleDividerToggleCollapse() {
+    if (_paneWidth.collapsed != null) {
+      _restorePane();
+      return;
+    }
+    final collapsible = widget.paneConfig.collapsible;
+    if (collapsible.allows(PaneSide.start)) {
+      _collapsePane(PaneSide.start);
+    } else if (collapsible.allows(PaneSide.end)) {
+      _collapsePane(PaneSide.end);
+    }
+  }
+
+  /// Double-click / double-tap: back to the configured default width
+  /// (the VS Code sash-reset gesture). Restores first when collapsed.
+  void _handleDividerReset() {
+    if (_paneWidth.collapsed != null) {
+      _restorePane();
+      return;
+    }
+    _settleToWidth(_paneWidth.defaultWidth(_lastExpandedWidth));
+  }
+
+  void _handleDividerJumpToMinimum() {
+    if (_paneWidth.collapsed != null) _restorePane();
+    _settleToWidth(widget.paneConfig.minListWidth);
+  }
+
+  void _handleDividerJumpToMaximum() {
+    if (_paneWidth.collapsed != null) _restorePane();
+    _settleToWidth(_lastExpandedWidth * widget.paneConfig.maxListRatio);
+  }
+
+  /// The scope data descendants read via [PaneScope]. Collapse/restore
+  /// route through the same actions the divider uses.
+  PaneScopeData _paneScopeData() => PaneScopeData(
+    collapsed: _isExpanded ? _paneWidth.collapsed : null,
+    isExpanded: _isExpanded,
+    collapse: _collapsePane,
+    restore: _restorePane,
+  );
 
   // ===========================================================================
   // BREAKPOINT CROSSINGS
@@ -1023,87 +1100,95 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
-      builder: (context, constraints) {
-        final breakpoint = AdaptiveLayoutConfig.resolveBreakpoint(
-          context,
-          widget.expandedBreakpoint,
-        );
-        final isExpanded = constraints.maxWidth >= breakpoint;
-        _isExpanded = isExpanded;
-
-        final crossing = _detectCrossing(isExpanded);
-
-        // Evaluate overlay visibility (immediate hide for inactive tabs).
-        if (_useOverlay) _paintVisibility.evaluate();
-
-        _handleCrossing(crossing);
-
-        // Overlay entering compact outside a crossing frame (deep link,
-        // mode flip): the detail is a settled fact — show it fully open.
-        if (_useOverlay && !isExpanded && _controller.hasSelection) {
-          if (_slideController.value == 0 && !_slideController.isAnimating) {
-            _slideController.value = 1.0;
-          }
-        }
-
-        if (_useOverlay) {
-          // Overlay mode: OverlayPortal wraps BOTH layout modes so it's
-          // always in the tree. The overlay child returns the sliding detail
-          // when compact, or SizedBox.shrink() when expanded.
-          final innerLayout = isExpanded || _emptyPaneRetreating
-              ? buildExpandedLayout(constraints)
-              : buildCompactOverlayList();
-          return buildOverlayPortalWrapper(
-            child: PaintVisibilityObserver(
-              detector: _paintVisibility,
-              child: innerLayout,
-            ),
-          );
-        }
-
-        if (_useRoute) {
-          _paintVisibility.evaluate();
-          _routeFrameEvaluated = true;
-          // One-shot: after THIS frame's paint, verify the layout actually
-          // painted. A build pass that ends unpainted means the layout is
-          // hidden (under the route, or in a keep-alive tab) — suppress
-          // the route and correct the stale-true notifier. Armed only by
-          // build passes, so clean idle frames never false-trigger.
-          _armRoutePaintCheck();
-          if (isExpanded) {
-            _bridgeDetail = false;
-            _bridgeOffstage = false;
-          } else if (crossing.intoCompact && _controller.hasSelection) {
-            // Resize into compact with an open detail: the bridge holds
-            // the detail key until the push claims it. On a visible
-            // layout the route plays its REAL entrance (the app's
-            // PageTransitionsTheme) over the list, so the bridge goes
-            // offstage — alive for the handoff, invisible. On a hidden
-            // layout an entrance nobody watches is waste: visible bridge
-            // + instant push, so the re-show contract stays instant.
-            _bridgeDetail = true;
-            if (_paintVisibility.notifier.value) {
-              _bridgeOffstage = true;
-              _instantRoutePush = false;
-            } else {
-              _bridgeOffstage = false;
-              _instantRoutePush = true;
-            }
-          }
-          _scheduleRouteSync();
-          final innerLayout = isExpanded || _emptyPaneRetreating
-              ? buildExpandedLayout(constraints)
-              : buildCompactRouteList();
-          return PaintVisibilityObserver(
-            detector: _paintVisibility,
-            child: innerLayout,
-          );
-        }
-
-        return isExpanded || _emptyPaneRetreating
-            ? buildExpandedLayout(constraints)
-            : buildCompactLayout();
-      },
+      builder: (context, constraints) => PaneScope(
+        data: _paneScopeData(),
+        child: _buildForConstraints(context, constraints),
+      ),
     );
+  }
+
+  Widget _buildForConstraints(
+    BuildContext context,
+    BoxConstraints constraints,
+  ) {
+    final breakpoint = AdaptiveLayoutConfig.resolveBreakpoint(
+      context,
+      widget.expandedBreakpoint,
+    );
+    final isExpanded = constraints.maxWidth >= breakpoint;
+    _isExpanded = isExpanded;
+
+    final crossing = _detectCrossing(isExpanded);
+
+    // Evaluate overlay visibility (immediate hide for inactive tabs).
+    if (_useOverlay) _paintVisibility.evaluate();
+
+    _handleCrossing(crossing);
+
+    // Overlay entering compact outside a crossing frame (deep link,
+    // mode flip): the detail is a settled fact — show it fully open.
+    if (_useOverlay && !isExpanded && _controller.hasSelection) {
+      if (_slideController.value == 0 && !_slideController.isAnimating) {
+        _slideController.value = 1.0;
+      }
+    }
+
+    if (_useOverlay) {
+      // Overlay mode: OverlayPortal wraps BOTH layout modes so it's
+      // always in the tree. The overlay child returns the sliding detail
+      // when compact, or SizedBox.shrink() when expanded.
+      final innerLayout = isExpanded || _emptyPaneRetreating
+          ? buildExpandedLayout(constraints)
+          : buildCompactOverlayList();
+      return buildOverlayPortalWrapper(
+        child: PaintVisibilityObserver(
+          detector: _paintVisibility,
+          child: innerLayout,
+        ),
+      );
+    }
+
+    if (_useRoute) {
+      _paintVisibility.evaluate();
+      _routeFrameEvaluated = true;
+      // One-shot: after THIS frame's paint, verify the layout actually
+      // painted. A build pass that ends unpainted means the layout is
+      // hidden (under the route, or in a keep-alive tab) — suppress
+      // the route and correct the stale-true notifier. Armed only by
+      // build passes, so clean idle frames never false-trigger.
+      _armRoutePaintCheck();
+      if (isExpanded) {
+        _bridgeDetail = false;
+        _bridgeOffstage = false;
+      } else if (crossing.intoCompact && _controller.hasSelection) {
+        // Resize into compact with an open detail: the bridge holds
+        // the detail key until the push claims it. On a visible
+        // layout the route plays its REAL entrance (the app's
+        // PageTransitionsTheme) over the list, so the bridge goes
+        // offstage — alive for the handoff, invisible. On a hidden
+        // layout an entrance nobody watches is waste: visible bridge
+        // + instant push, so the re-show contract stays instant.
+        _bridgeDetail = true;
+        if (_paintVisibility.notifier.value) {
+          _bridgeOffstage = true;
+          _instantRoutePush = false;
+        } else {
+          _bridgeOffstage = false;
+          _instantRoutePush = true;
+        }
+      }
+      _scheduleRouteSync();
+      final innerLayout = isExpanded || _emptyPaneRetreating
+          ? buildExpandedLayout(constraints)
+          : buildCompactRouteList();
+      return PaintVisibilityObserver(
+        detector: _paintVisibility,
+        child: innerLayout,
+      );
+    }
+
+    return isExpanded || _emptyPaneRetreating
+        ? buildExpandedLayout(constraints)
+        : buildCompactLayout();
   }
 }

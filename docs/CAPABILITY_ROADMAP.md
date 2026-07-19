@@ -61,6 +61,9 @@ while an active row is not `DONE` or `WONT_DO`. Statuses: `DONE` ·
 | Ratio resize mode (pane scales with window) | DONE | Default; `defaultListWidth` referenced to the breakpoint |
 | Pixels resize mode (pane fixed across resizes) | DONE | `PaneResizeMode.pixels` |
 | Min-width / max-ratio clamping | DONE | Min wins when the window is too narrow for the ratio cap |
+| Snap-collapse panes (VS Code spec) | DONE | `PaneCollapsible` per side + `collapsedSize` icon-rail; half-minimum threshold, cached-width restore, pull-tab `HandleDivider`; directional API preserved for `AdaptiveSplit` end-positioned primary |
+| Divider keyboard + screen-reader support | DONE | WAI-ARIA window splitter: Tab-focusable, arrows resize, Enter toggles collapse, Home/End jump, double-click resets; semantics increase/decrease with pane-share value |
+| PaneScope (pane state for descendants) | DONE | `collapsed`/`isExpanded` + `collapse`/`restore` actions; the hamburger recipe |
 | Anchor snap points with settle animation | DONE | Nearest anchor on drag end; `isSettling` fed to divider builders |
 | Initial width from anchor index | DONE | `PaneConfig.initialAnchorIndex`, anchors non-empty |
 

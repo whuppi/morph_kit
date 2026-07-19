@@ -4,6 +4,8 @@ import 'package:adaptive_layouts/src/core/shared/adaptive_layout_config.dart';
 import 'package:adaptive_layouts/src/core/shared/divider_builder.dart';
 import 'package:adaptive_layouts/src/core/shared/pane_collapse.dart';
 import 'package:adaptive_layouts/src/core/shared/pane_config.dart';
+import 'package:adaptive_layouts/src/core/shared/pane_divider_region.dart';
+import 'package:adaptive_layouts/src/core/shared/pane_scope.dart';
 import 'package:adaptive_layouts/src/core/shared/pane_width_memory.dart';
 import 'package:adaptive_layouts/src/core/shared/pane_width_model.dart';
 
@@ -157,6 +159,7 @@ class _AdaptiveSplitState extends State<AdaptiveSplit>
     _paneWidth = PaneWidthModel(
       widget.paneConfig,
       referenceWidth: _referenceWidth,
+      collapsible: _modelCollapsible,
     );
     _settleController = AnimationController(
       vsync: this,
@@ -168,6 +171,10 @@ class _AdaptiveSplitState extends State<AdaptiveSplit>
   /// build is never a crossing.
   bool _wasExpandedLastBuild = false;
   bool _hasBuiltOnce = false;
+
+  /// Whether the last build laid out side-by-side. Gates collapse actions
+  /// (collapse is expanded-only view state).
+  bool _isExpanded = false;
 
   @override
   void didUpdateWidget(AdaptiveSplit oldWidget) {
@@ -181,6 +188,7 @@ class _AdaptiveSplitState extends State<AdaptiveSplit>
       _paneWidth = PaneWidthModel(
         widget.paneConfig,
         referenceWidth: _referenceWidth,
+        collapsible: _modelCollapsible,
       );
     }
   }
@@ -195,6 +203,38 @@ class _AdaptiveSplitState extends State<AdaptiveSplit>
   void dispose() {
     _settleController.dispose();
     super.dispose();
+  }
+
+  // ===========================================================================
+  // MODEL <-> DIRECTIONAL TRANSLATION
+  // ===========================================================================
+
+  // The width model measures the PRIMARY pane. When the primary sits at
+  // the directional end, model-space sides are the mirror of the
+  // directional sides the public API speaks. These helpers flip at the
+  // boundary so `PaneSide` / `PaneCollapsible` stay directional
+  // everywhere consumers see them.
+
+  bool get _primaryAtStart =>
+      widget.primaryPosition == SplitPrimaryPosition.start;
+
+  PaneCollapsible get _modelCollapsible {
+    final collapsible = widget.paneConfig.collapsible;
+    if (_primaryAtStart) return collapsible;
+    return switch (collapsible) {
+      PaneCollapsible.start => PaneCollapsible.end,
+      PaneCollapsible.end => PaneCollapsible.start,
+      _ => collapsible,
+    };
+  }
+
+  PaneSide _flipSide(PaneSide side) =>
+      side == PaneSide.start ? PaneSide.end : PaneSide.start;
+
+  PaneSide? get _visualCollapsed {
+    final collapsed = _paneWidth.collapsed;
+    if (collapsed == null || _primaryAtStart) return collapsed;
+    return _flipSide(collapsed);
   }
 
   // ===========================================================================
@@ -228,11 +268,15 @@ class _AdaptiveSplitState extends State<AdaptiveSplit>
 
   /// Animates the divider to the nearest anchor. No-op without anchors.
   void _settleToNearestAnchor() {
-    final availableWidth = _lastExpandedWidth;
-    final target = _paneWidth.snapTarget(availableWidth);
-    if (target == null) return;
+    final target = _paneWidth.snapTarget(_lastExpandedWidth);
+    if (target != null) _settleToWidth(target);
+  }
 
+  /// Animates the divider to [target] using the settle knobs.
+  void _settleToWidth(double target) {
+    final availableWidth = _lastExpandedWidth;
     final begin = _paneWidth.width(availableWidth);
+    if ((target - begin).abs() < 0.5) return;
     final curve = CurvedAnimation(
       parent: _settleController,
       curve: widget.paneConfig.settleCurve,
@@ -255,6 +299,90 @@ class _AdaptiveSplitState extends State<AdaptiveSplit>
   }
 
   // ===========================================================================
+  // DIVIDER KEYBOARD / COLLAPSE ACTIONS
+  // ===========================================================================
+
+  /// Keyboard step: one micro-drag through the normal resize path, so RTL
+  /// and primary-position correction apply identically to pointer drags.
+  void _handleDividerStep(double delta) {
+    if (_paneWidth.collapsed != null) return;
+    _settleController.stop();
+    _handleDividerDragUpdate(delta);
+  }
+
+  /// Collapses the directional [side] instantly. Programmatic collapse
+  /// (keyboard, app buttons) snaps — the drag path is the only animated
+  /// route in 1b.
+  void _collapsePane(PaneSide side) {
+    if (!_isExpanded || _paneWidth.collapsed != null) return;
+    if (!widget.paneConfig.collapsible.allows(side)) return;
+    _settleController.stop();
+    final modelSide = _primaryAtStart ? side : _flipSide(side);
+    setState(() => _paneWidth.collapse(modelSide, _lastExpandedWidth));
+  }
+
+  /// Restores a collapsed pane to its remembered width instantly.
+  void _restorePane() {
+    if (_paneWidth.collapsed == null) return;
+    setState(() => _paneWidth.restore(_lastExpandedWidth));
+  }
+
+  /// Enter on the focused divider: restore when collapsed, else collapse
+  /// the first directional side the config allows.
+  void _handleDividerToggleCollapse() {
+    if (_paneWidth.collapsed != null) {
+      _restorePane();
+      return;
+    }
+    final collapsible = widget.paneConfig.collapsible;
+    if (collapsible.allows(PaneSide.start)) {
+      _collapsePane(PaneSide.start);
+    } else if (collapsible.allows(PaneSide.end)) {
+      _collapsePane(PaneSide.end);
+    }
+  }
+
+  /// Double-click / double-tap: back to the configured default width.
+  /// Restores first when collapsed.
+  void _handleDividerReset() {
+    if (_paneWidth.collapsed != null) {
+      _restorePane();
+      return;
+    }
+    _settleToWidth(_paneWidth.defaultWidth(_lastExpandedWidth));
+  }
+
+  // Home/End move the DIVIDER to its directional start/end. In model
+  // space that's the primary's minimum/maximum — mirrored when the
+  // primary sits at the directional end.
+
+  void _handleDividerJumpToMinimum() {
+    if (_paneWidth.collapsed != null) _restorePane();
+    _settleToWidth(
+      _primaryAtStart
+          ? widget.paneConfig.minListWidth
+          : _lastExpandedWidth * widget.paneConfig.maxListRatio,
+    );
+  }
+
+  void _handleDividerJumpToMaximum() {
+    if (_paneWidth.collapsed != null) _restorePane();
+    _settleToWidth(
+      _primaryAtStart
+          ? _lastExpandedWidth * widget.paneConfig.maxListRatio
+          : widget.paneConfig.minListWidth,
+    );
+  }
+
+  /// The scope data descendants read via [PaneScope].
+  PaneScopeData _paneScopeData() => PaneScopeData(
+    collapsed: _isExpanded ? _visualCollapsed : null,
+    isExpanded: _isExpanded,
+    collapse: _collapsePane,
+    restore: _restorePane,
+  );
+
+  // ===========================================================================
   // BUILD
   // ===========================================================================
 
@@ -267,6 +395,7 @@ class _AdaptiveSplitState extends State<AdaptiveSplit>
           widget.expandedBreakpoint,
         );
         final isExpanded = constraints.maxWidth >= breakpoint;
+        _isExpanded = isExpanded;
         if (_hasBuiltOnce &&
             !_wasExpandedLastBuild &&
             isExpanded &&
@@ -277,30 +406,51 @@ class _AdaptiveSplitState extends State<AdaptiveSplit>
           _paneWidth = PaneWidthModel(
             widget.paneConfig,
             referenceWidth: _referenceWidth,
+            collapsible: _modelCollapsible,
           );
         }
         _wasExpandedLastBuild = isExpanded;
         _hasBuiltOnce = true;
 
-        return isExpanded
-            ? _buildExpandedLayout(constraints)
-            : _buildCompactLayout();
+        return PaneScope(
+          data: _paneScopeData(),
+          child: isExpanded
+              ? _buildExpandedLayout(constraints)
+              : _buildCompactLayout(),
+        );
       },
     );
   }
 
-  /// The divider's interaction state for [DividerBuilder]s.
-  DividerState _dividerState(double availableWidth) {
+  /// Formats the directional-start pane's share after a model-space
+  /// [delta], clamped to the pane limits, for the screen-reader value
+  /// contract.
+  String _paneSharePercent(double width, double delta, double availableWidth) {
+    final clamped = (width + delta).clamp(
+      widget.paneConfig.minListWidth,
+      availableWidth * widget.paneConfig.maxListRatio,
+    );
+    final startShare = _primaryAtStart ? clamped : availableWidth - clamped;
+    return '${(startShare / availableWidth * 100).round()}%';
+  }
+
+  /// The divider's interaction state for [DividerBuilder]s, in
+  /// DIRECTIONAL terms: with an end-positioned primary the model's limits
+  /// mirror, so at-minimum/at-maximum and the collapsed side all flip.
+  DividerState _dividerState(double availableWidth, {bool isFocused = false}) {
     final collapsed = _paneWidth.collapsed;
     final width = _paneWidth.width(availableWidth);
     final max = availableWidth * widget.paneConfig.maxListRatio;
+    final atModelMin =
+        collapsed == null && width <= widget.paneConfig.minListWidth + 0.5;
+    final atModelMax = collapsed == null && width >= max - 0.5;
     return DividerState(
       isDragging: _isDividerDragging,
       isSettling: _isDividerSettling,
-      atMinimum:
-          collapsed == null && width <= widget.paneConfig.minListWidth + 0.5,
-      atMaximum: collapsed == null && width >= max - 0.5,
-      collapsed: collapsed,
+      atMinimum: _primaryAtStart ? atModelMin : atModelMax,
+      atMaximum: _primaryAtStart ? atModelMax : atModelMin,
+      collapsed: _visualCollapsed,
+      isFocused: isFocused,
     );
   }
 
@@ -370,17 +520,30 @@ class _AdaptiveSplitState extends State<AdaptiveSplit>
                   ),
           top: 0,
           bottom: 0,
-          child: GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onHorizontalDragStart: (_) => _handleDividerDragStart(),
-            onHorizontalDragUpdate: (d) =>
-                _handleDividerDragUpdate(d.primaryDelta ?? 0),
-            onHorizontalDragEnd: (_) => _handleDividerDragEnd(),
-            child: SizedBox(
-              width: widget.paneConfig.dividerHitWidth,
-              child: dividerBuilder != null
-                  ? dividerBuilder(context, _dividerState(availableWidth))
-                  : null,
+          child: PaneDividerRegion(
+            hitWidth: widget.paneConfig.dividerHitWidth,
+            stateFor: (focused) =>
+                _dividerState(availableWidth, isFocused: focused),
+            dividerBuilder: dividerBuilder,
+            onDragStart: _handleDividerDragStart,
+            onDragDelta: _handleDividerDragUpdate,
+            onDragEnd: _handleDividerDragEnd,
+            onStep: _handleDividerStep,
+            onToggleCollapse: _handleDividerToggleCollapse,
+            onJumpToMinimum: _handleDividerJumpToMinimum,
+            onJumpToMaximum: _handleDividerJumpToMaximum,
+            onReset: _handleDividerReset,
+            semanticsLabel: widget.paneConfig.dividerSemanticsLabel,
+            semanticsValue: _paneSharePercent(primaryWidth, 0, availableWidth),
+            semanticsIncreasedValue: _paneSharePercent(
+              primaryWidth,
+              PaneDividerRegion.keyboardStep,
+              availableWidth,
+            ),
+            semanticsDecreasedValue: _paneSharePercent(
+              primaryWidth,
+              -PaneDividerRegion.keyboardStep,
+              availableWidth,
             ),
           ),
         ),

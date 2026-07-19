@@ -18,10 +18,20 @@ import 'package:adaptive_layouts/src/core/shared/pane_resize_mode.dart';
 /// an anchor outside the clamp range settles at the clamp boundary.
 class PaneWidthModel {
   /// Creates a width model for [config].
-  PaneWidthModel(this.config, {required this.referenceWidth});
+  PaneWidthModel(
+    this.config, {
+    required this.referenceWidth,
+    PaneCollapsible? collapsible,
+  }) : collapsible = collapsible ?? config.collapsible;
 
   /// The pane configuration this model applies.
   final PaneConfig config;
+
+  /// Which sides may collapse, in MODEL space (start = the pane this
+  /// model's width measures). Layouts whose measured pane isn't on the
+  /// directional start (`AdaptiveSplit` with an end-positioned primary)
+  /// pass a flipped value so [PaneConfig.collapsible] stays directional.
+  final PaneCollapsible collapsible;
 
   /// The width [PaneConfig.defaultListWidth] is converted against in ratio
   /// mode — the layout's expanded breakpoint (the minimum expanded width).
@@ -152,12 +162,12 @@ class PaneWidthModel {
     final min = config.minListWidth;
     final max = _maxWidth(availableWidth);
 
-    if (config.collapsible.allows(PaneSide.start) &&
+    if (collapsible.allows(PaneSide.start) &&
         raw < min - _collapseThreshold(PaneSide.start, availableWidth)) {
       _collapsed = PaneSide.start;
       return;
     }
-    if (config.collapsible.allows(PaneSide.end) &&
+    if (collapsible.allows(PaneSide.end) &&
         raw > max + _collapseThreshold(PaneSide.end, availableWidth)) {
       _collapsed = PaneSide.end;
       return;
@@ -180,9 +190,9 @@ class PaneWidthModel {
   }
 
   /// Collapses [side] programmatically, caching the current width for
-  /// [restoreTarget]. No-op when [PaneConfig.collapsible] disallows it.
+  /// [restoreTarget]. No-op when [collapsible] disallows it.
   void collapse(PaneSide side, double availableWidth) {
-    if (!config.collapsible.allows(side) || _collapsed == side) return;
+    if (!collapsible.allows(side) || _collapsed == side) return;
     _cachedWidth = width(availableWidth);
     _collapsed = side;
   }
@@ -201,6 +211,26 @@ class PaneWidthModel {
   /// The width a restore animation should settle to.
   double restoreTarget(double availableWidth) =>
       _clamp(_cachedWidth ?? config.defaultListWidth, availableWidth);
+
+  /// The configured default width (the divider's double-click reset
+  /// target): the initial anchor when anchors are configured, else
+  /// [PaneConfig.defaultListWidth] under the resize-mode conversion.
+  double defaultWidth(double availableWidth) {
+    if (config.anchors.isNotEmpty) {
+      final index = config.initialAnchorIndex.clamp(
+        0,
+        config.anchors.length - 1,
+      );
+      return _clamp(
+        config.anchors[index].resolve(availableWidth),
+        availableWidth,
+      );
+    }
+    final raw = _isRatioMode
+        ? availableWidth * (config.defaultListWidth / referenceWidth)
+        : config.defaultListWidth;
+    return _clamp(raw, availableWidth);
+  }
 
   /// Sets the width to an exact pixel value (used by the settle animation).
   void setWidth(double widthPx, double availableWidth) {

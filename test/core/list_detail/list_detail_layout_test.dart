@@ -107,8 +107,10 @@ void main() {
         closeTo(before - 100, 30),
       );
 
-      // Dragging far past maxListRatio clamps.
-      await tester.dragFrom(Offset(before - 100, 400), const Offset(900, 0));
+      // Dragging far past maxListRatio clamps. Grab the divider where it
+      // is now — touch slop shifts the settled position a little.
+      final mid = tester.getSize(find.byKey(const Key('list'))).width;
+      await tester.dragFrom(Offset(mid, 400), const Offset(900, 0));
       await tester.pumpAndSettle();
       expect(
         tester.getSize(find.byKey(const Key('list'))).width,

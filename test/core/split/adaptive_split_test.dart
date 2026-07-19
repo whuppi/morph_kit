@@ -1,5 +1,6 @@
 import 'package:adaptive_layouts/adaptive_layouts.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../helpers.dart';
@@ -148,6 +149,103 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(tester.getRect(find.byKey(const Key('primary'))).width, 500);
+    });
+  });
+
+  group('directional collapse (primary at end)', () {
+    testWidgets('collapsing the directional end pane collapses the primary', (
+      tester,
+    ) async {
+      await pumpApp(
+        tester,
+        buildSplit(
+          primaryPosition: SplitPrimaryPosition.end,
+          paneConfig: const PaneConfig(collapsible: PaneCollapsible.end),
+        ),
+        size: expanded,
+      );
+      // Primary sits at the directional end at the model width.
+      final before = tester.getSize(find.byKey(const Key('primary'))).width;
+
+      // Enter on the focused divider collapses the allowed (end) side —
+      // which IS the primary here, despite being model-space start.
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+      expect(
+        tester.getSize(find.byKey(const Key('primary'))).width,
+        const PaneConfig().minListWidth,
+      );
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+      expect(tester.getSize(find.byKey(const Key('primary'))).width, before);
+    });
+
+    testWidgets('DividerState reports the collapsed side directionally', (
+      tester,
+    ) async {
+      final states = <DividerState>[];
+      await pumpApp(
+        tester,
+        buildSplit(
+          primaryPosition: SplitPrimaryPosition.end,
+          paneConfig: const PaneConfig(collapsible: PaneCollapsible.end),
+          dividerBuilder: (context, state) {
+            states.add(state);
+            return const SizedBox.expand();
+          },
+        ),
+        size: expanded,
+      );
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+      // The model collapsed its start (the primary), but consumers see
+      // the DIRECTIONAL side: end.
+      expect(states.last.collapsed, PaneSide.end);
+    });
+
+    testWidgets('PaneScope actions speak directional sides', (tester) async {
+      await pumpApp(
+        tester,
+        AdaptiveSplit(
+          primaryPosition: SplitPrimaryPosition.end,
+          paneConfig: const PaneConfig(collapsible: PaneCollapsible.end),
+          primaryBuilder: (context, isExpanded) =>
+              const ColoredBox(key: Key('primary'), color: Color(0xFF111111)),
+          secondaryBuilder: (context, isExpanded) => Center(
+            child: Builder(
+              builder: (context) {
+                final scope = PaneScope.of(context);
+                return IconButton(
+                  key: const Key('toggle'),
+                  icon: const Icon(Icons.menu),
+                  onPressed: scope.collapsed == null
+                      ? () => scope.collapse(PaneSide.end)
+                      : scope.restore,
+                );
+              },
+            ),
+          ),
+        ),
+        size: expanded,
+      );
+      final before = tester.getSize(find.byKey(const Key('primary'))).width;
+
+      await tester.tap(find.byKey(const Key('toggle')));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getSize(find.byKey(const Key('primary'))).width,
+        const PaneConfig().minListWidth,
+      );
+
+      await tester.tap(find.byKey(const Key('toggle')));
+      await tester.pumpAndSettle();
+      expect(tester.getSize(find.byKey(const Key('primary'))).width, before);
     });
   });
 
