@@ -347,6 +347,16 @@ void main() {
       // assertions below via PopScope — this is what proves route-ness.)
       expect(rootNavigator.canPop(), isTrue);
 
+      // The status strip lives in MaterialApp.builder — above the
+      // Navigator — so the pushed detail cannot cover it and its actions
+      // stay live. Opening the panel proves it is on top and tappable.
+      await tester.tap(find.byTooltip('Package settings'));
+      await tester.pumpAndSettle();
+      expect(find.text('Layout'), findsOneWidget);
+      await tester.binding.handlePopRoute(); // close the panel
+      await tester.pumpAndSettle();
+      expect(find.byType(TicketPane), findsOneWidget); // detail still routed
+
       // REAL system back pops the real route; the URL syncs through the
       // controller exactly as in the other modes.
       await tester.binding.handlePopRoute();

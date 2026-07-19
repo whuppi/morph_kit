@@ -71,6 +71,32 @@ class _ExampleAppState extends State<ExampleApp> {
             ),
           ),
           routerConfig: _router.config(),
+          // App chrome that must outlive EVERY route lives here, above
+          // the Navigator — a page can never do this: any push (a
+          // route-mode detail, a modal) covers page content. The chrome
+          // level hosts its OWN Overlay: floating pieces up here
+          // (tooltips) can't reach the app's overlay, which lives below,
+          // inside `child`. The strip's actions run through the
+          // navigator's own context, since the builder context sits
+          // above it.
+          builder: (context, child) => Overlay(
+            initialEntries: [
+              OverlayEntry(
+                builder: (context) => Material(
+                  color: Theme.of(context).colorScheme.surface,
+                  child: Column(
+                    children: [
+                      StatusStrip(
+                        navigatorContext: () =>
+                            _router.navigatorKey.currentContext!,
+                      ),
+                      Expanded(child: child!),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1511,34 +1537,29 @@ class _MultiTypeListDetailRouterState extends State<MultiTypeListDetailRouter> {
 // SHELLS
 // =============================================================================
 
-/// Root shell — a persistent zone that sits ABOVE the router, so route swaps
-/// and overlay details never cover or remount it.
+/// Root shell — the top page of the root stack. The persistent strip is
+/// NOT here: a page can be covered by anything pushed above it, so the
+/// strip lives in `MaterialApp.builder`, above the Navigator itself.
 @RoutePage()
 class RootShellScreen extends StatelessWidget {
   const RootShellScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Material(
-      color: colorScheme.surface,
-      child: const Column(
-        children: [
-          StatusStrip(),
-          Expanded(child: AutoRouter()),
-        ],
-      ),
-    );
+    return const AutoRouter();
   }
 }
 
 /// The persistent strip: shows the active deploy when one is running.
-/// Rendered outside the nested router, so overlay-mode details (which live in
-/// the nested Navigator's overlay) slide UNDER it — that layering is part of
-/// the contract being demonstrated.
+/// Mounted in `MaterialApp.builder` — above the app's Navigator — so no
+/// route, detail page, or modal can ever cover it.
 class StatusStrip extends StatelessWidget {
-  const StatusStrip({super.key});
+  const StatusStrip({super.key, required this.navigatorContext});
+
+  /// The navigator's context, for actions that present routes (the ⚙
+  /// settings modal): the strip's own context sits ABOVE the Navigator
+  /// and cannot push into it.
+  final BuildContext Function() navigatorContext;
 
   @override
   Widget build(BuildContext context) {
@@ -1583,7 +1604,7 @@ class StatusStrip extends StatelessWidget {
                     icon: const Icon(Icons.tune, size: 16),
                     visualDensity: VisualDensity.compact,
                     tooltip: 'Package settings',
-                    onPressed: () => showPackageSettings(context),
+                    onPressed: () => showPackageSettings(navigatorContext()),
                   ),
                   const SizedBox(width: 4),
                 ],
