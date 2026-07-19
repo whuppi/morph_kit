@@ -340,11 +340,13 @@ The rules that hold across every widget and mode:
 - **Parked panes don't dance.** A collapsed pane arrives already collapsed: the rail docks at its parked width from the first expanded frame. The collapse animation belongs to the moment the user collapsed — a window resize isn't that moment.
 
 <details>
-<summary><b>🧩 Why not push the detail as a route on phones?</b></summary>
+<summary><b>🧩 Why the foundation is widget-level morphing, not routes</b></summary>
 
-A route-based compact detail gets platform behaviors free (predictive back, edge swipe), but the detail then lives inside a page — and pages rebuild their content from state. Carrying one widget instance between "pane 2 of a wide layout" and "a pushed route" means either lifting every piece of ephemeral state out of the widgets, or a fragile zero-transition page dance around duplicate `GlobalKey`s mid-animation.
+The obvious way to build an adaptive list-detail is route-based: on compact, push the detail as a page. It gets platform behaviors free — but a pushed page rebuilds its content from state, so the naive version loses cursor position, scroll offset, and running animations on every breakpoint crossing. That's the approach the standard components take, and it's why their state guarantee is weaker.
 
-This package keeps both layouts inside one widget instead. The detail mounts under a stable `GlobalKey`, so the morph reparents the same element — Flutter's documented mechanism for moving a widget without losing its state. The cost is owned in exchange: the slide animation, swipe-to-dismiss, and back handling are implemented here rather than inherited from the Navigator. That trade — a stronger state guarantee for a self-implemented navigation feel — is the package's identity. (`CompactDetailMode.route` then earns the platform behaviors back on top, reparenting through a real route.)
+This package's foundation is one widget owning both arrangements instead. The detail mounts under a stable `GlobalKey`, and the morph reparents the same element — Flutter's documented mechanism for moving a widget without losing its state. In `inline` and `overlay` modes the cost of that choice is owned directly: the slide animation, swipe-to-dismiss, and back handling are implemented here rather than inherited from the Navigator.
+
+`CompactDetailMode.route` then earns the platform behaviors back **on top of** that foundation: the pushed page hosts the same keyed element, and the layout choreographs the handoff — an offstage bridge holds the element alive during the frames between resize and push, so the key is claimed by exactly one owner per frame. A route-first design can't do this dance, because nobody outside the routes owns the element's lifecycle; a widget-first design can, because the layout always does. That layering — widget-level state engine underneath, real navigation opted in on top — is the package's identity.
 
 </details>
 
