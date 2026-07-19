@@ -60,6 +60,10 @@ CONTENT RULES (never change)
 
 <!-- Add new versions below, newest first. -->
 
+## 0.1.1
+
+- Shortened the pubspec description to pub.dev's 60-180 character guidance (the 0.1.0 description was flagged by package analysis and cost pub points).
+
 ## 0.1.0
 
 First release — adaptive layout widgets that morph between phone and desktop forms.
