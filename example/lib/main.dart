@@ -833,7 +833,6 @@ class AppRouter extends RootStackRouter {
       page: RootShellRoute.page,
       path: Paths.root,
       children: [
-
         // App shell — domain navigation (bottom nav / rail).
         AutoRoute(
           page: AppShellRoute.page,
@@ -918,10 +917,7 @@ class AppRouter extends RootStackRouter {
                   path: Paths.monitor,
                   initial: true,
                 ),
-                AutoRoute(
-                  page: WorkbenchTabRoute.page,
-                  path: Paths.workbench,
-                ),
+                AutoRoute(page: WorkbenchTabRoute.page, path: Paths.workbench),
                 AutoRoute(
                   page: RunsShellRoute.page,
                   path: Paths.runs,
@@ -1117,6 +1113,8 @@ class ListDetailRouter extends StatefulWidget {
   final ListPaneBuilder<String> listBuilder;
   final DetailPaneBuilder<String> detailBuilder;
   final WidgetBuilder? emptyStateBuilder;
+  final WidgetBuilder? collapsedListBuilder;
+  final WidgetBuilder? collapsedDetailBuilder;
 
   /// When provided, auto-clears selection if the entity no longer exists.
   final bool Function(String id)? selectedIdExists;
@@ -1134,6 +1132,8 @@ class ListDetailRouter extends StatefulWidget {
     required this.listBuilder,
     required this.detailBuilder,
     this.emptyStateBuilder,
+    this.collapsedListBuilder,
+    this.collapsedDetailBuilder,
     this.selectedIdExists,
     this.firstItemId,
   });
@@ -1273,6 +1273,8 @@ class _ListDetailRouterState extends State<ListDetailRouter> {
           listBuilder: widget.listBuilder,
           detailBuilder: widget.detailBuilder,
           emptyStateBuilder: widget.emptyStateBuilder,
+          collapsedListBuilder: widget.collapsedListBuilder,
+          collapsedDetailBuilder: widget.collapsedDetailBuilder,
           dividerBuilder: settings.dividerBuilder,
           paneConfig: settings.paneConfig,
           compactConfig: settings.compactConfig,
@@ -2216,8 +2218,84 @@ class TicketsTabScreen extends StatelessWidget {
             icon: Icons.confirmation_number_outlined,
             message: 'Select a ticket',
           ),
+          // The icon-rail recipe: with "collapse to icon rail" on, a
+          // snapped-shut list renders THIS instead of clipped content —
+          // laid out at the real 56px slot. Tapping an icon restores the
+          // list and selects that ticket.
+          collapsedListBuilder: (context) => CollapsedIconRail(
+            items: [
+              for (final t in tickets)
+                CollapsedRailItem(
+                  icon: t.icon,
+                  tooltip: t.name,
+                  onTap: () =>
+                      context.router.navigatePath('/work/tickets/${t.id}'),
+                ),
+            ],
+          ),
+          collapsedDetailBuilder: (context) => const CollapsedIconRail(),
         );
       },
+    );
+  }
+}
+
+/// A 56px icon rail for a collapsed pane — the VS Code activity-bar
+/// shape. Reads [PaneScope] for the restore action; item taps restore
+/// AND select, so the rail stays a functional mini version of the list.
+class CollapsedRailItem {
+  const CollapsedRailItem({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+}
+
+class CollapsedIconRail extends StatelessWidget {
+  const CollapsedIconRail({super.key, this.items = const []});
+
+  final List<CollapsedRailItem> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final scope = PaneScope.of(context);
+    return Material(
+      color: colorScheme.surfaceContainerLow,
+      child: Column(
+        children: [
+          const SizedBox(height: 8),
+          IconButton(
+            icon: Icon(
+              scope.collapsed == PaneSide.start
+                  ? Icons.keyboard_double_arrow_right
+                  : Icons.keyboard_double_arrow_left,
+            ),
+            tooltip: 'Expand',
+            onPressed: scope.restore,
+          ),
+          const Divider(height: 16, indent: 12, endIndent: 12),
+          Expanded(
+            child: ListView(
+              children: [
+                for (final item in items)
+                  IconButton(
+                    icon: Icon(item.icon, size: 20),
+                    tooltip: item.tooltip,
+                    color: colorScheme.onSurfaceVariant,
+                    onPressed: () {
+                      scope.restore();
+                      item.onTap();
+                    },
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

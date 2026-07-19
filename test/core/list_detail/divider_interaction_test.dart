@@ -254,6 +254,69 @@ void main() {
     });
   });
 
+  group('collapsed icon rail', () {
+    Widget buildRailLayout() {
+      return ListDetailLayout<String>(
+        controller: ListDetailController<String>(initialSelection: 'a'),
+        paneConfig: const PaneConfig(
+          collapsible: PaneCollapsible.start,
+          collapsedSize: 56,
+        ),
+        listBuilder: (context, selectedId, onSelect) =>
+            const CounterPane(label: 'list'),
+        detailBuilder: (context, id, mode, onDismiss) =>
+            const ColoredBox(key: Key('detail'), color: Color(0xFF333333)),
+        collapsedListBuilder: (context) => ColoredBox(
+          key: const Key('rail'),
+          color: const Color(0xFF444444),
+          child: IconButton(
+            key: const Key('rail-expand'),
+            icon: const Icon(Icons.menu),
+            onPressed: PaneScope.of(context).restore,
+          ),
+        ),
+      );
+    }
+
+    testWidgets('rail lays out at the real slot width; list parks alive', (
+      tester,
+    ) async {
+      await pumpApp(tester, buildRailLayout(), size: expanded);
+
+      // Mutate list state, then collapse.
+      await tester.tap(find.text('list: 0'));
+      await tester.pump();
+
+      await tester.dragFrom(const Offset(500, 400), const Offset(-600, 0));
+      await tester.pumpAndSettle();
+
+      // The rail owns the 56px slot — laid at 56, not clipped-at-minimum.
+      expect(tester.getSize(find.byKey(const Key('rail'))).width, 56);
+      // The list is parked offstage, still mounted.
+      expect(find.text('list: 1', skipOffstage: false), findsOneWidget);
+      expect(find.text('list: 1'), findsNothing);
+    });
+
+    testWidgets('rail restore brings the same list instance back', (
+      tester,
+    ) async {
+      await pumpApp(tester, buildRailLayout(), size: expanded);
+      await tester.tap(find.text('list: 0'));
+      await tester.pump();
+      final before = tester.getSize(find.text('list: 1')).width;
+      expect(before, greaterThan(0));
+
+      await tester.dragFrom(const Offset(500, 400), const Offset(-600, 0));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('rail-expand')));
+      await tester.pumpAndSettle();
+      // Same live instance — the count survived the round trip.
+      expect(find.text('list: 1'), findsOneWidget);
+      expect(find.byKey(const Key('rail')), findsNothing);
+    });
+  });
+
   group('semantics', () {
     testWidgets('divider is an adjustable element with a share value', (
       tester,

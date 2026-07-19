@@ -252,6 +252,23 @@ focusable and screen-reader adjustable out of the box:
 
 Localize the announcement via `PaneConfig(dividerSemanticsLabel: ...)`.
 
+With a non-zero `collapsedSize`, the collapsed pane clips its normal
+content at its minimum width by default. For a real icon rail, give the
+slot purpose-built content — it lays out at the actual collapsed width,
+and the pane parks offstage with its state alive until restored:
+
+```dart
+ListDetailLayout(
+  collapsedListBuilder: (context) => MyIconRail(
+    onExpand: PaneScope.of(context).restore,
+  ),
+  ...
+)
+```
+
+(`collapsedDetailBuilder` covers the end side; `AdaptiveSplit` has
+`collapsedPrimaryBuilder` / `collapsedSecondaryBuilder`.)
+
 For the wide layout's "nothing selected" area, pass any builder — or the shipped one:
 
 ```dart

@@ -277,7 +277,13 @@ The machinery in `list_detail_layout.dart` holds:
    together** — Flutter asserts if increase/decrease actions exist with a
    `value` but no stepped values. The share strings come from the
    layout's `_paneSharePercent`.
-8. **The divider stays grabbable when parked.** The region's position is
+8. **Rail slots replace the clip only when the app opts in.** A
+   `collapsed*Builder` lays its content at the REAL slot width
+   (`StackFit.expand` — the offstage child is zero-size and must not
+   set the stack's size) while the pane parks in `Offstage` +
+   `TickerMode(false)`, state alive. Both panes carry reparenting
+   GlobalKeys, so the wrap/unwrap reparents instead of remounting.
+9. **The divider stays grabbable when parked.** The region's position is
    clamped fully on-screen at `collapsedSize`; a collapsed pane must
    always be recoverable by drag alone.
 

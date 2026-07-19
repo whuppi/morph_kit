@@ -83,6 +83,8 @@ class AdaptiveSplit extends StatefulWidget {
     this.paneConfig = const PaneConfig(),
     this.dividerBuilder,
     this.compactSpacing = 0,
+    this.collapsedPrimaryBuilder,
+    this.collapsedSecondaryBuilder,
   });
 
   /// Builder for the primary content pane.
@@ -114,6 +116,16 @@ class AdaptiveSplit extends StatefulWidget {
 
   /// Spacing between panes in compact (stacked) layout.
   final double compactSpacing;
+
+  /// What a collapsed primary pane shows, laid out at the REAL slot
+  /// width (`PaneConfig.collapsedSize`) — the icon-rail slot. While it
+  /// shows, the primary parks offstage with its state alive. Null keeps
+  /// the default: the pane clipped at its floor width. The builder's
+  /// context sits under [PaneScope] for the restore affordance.
+  final WidgetBuilder? collapsedPrimaryBuilder;
+
+  /// Same slot for a collapsed secondary pane.
+  final WidgetBuilder? collapsedSecondaryBuilder;
 
   @override
   State<AdaptiveSplit> createState() => _AdaptiveSplitState();
@@ -422,6 +434,34 @@ class _AdaptiveSplitState extends State<AdaptiveSplit>
     );
   }
 
+  /// A collapsed pane's slot. With a rail builder the rail lays out at
+  /// the REAL slot width while the pane parks offstage, state alive
+  /// (tickers paused). Without one, the pane stays laid out at its
+  /// floor width and clips as the slot shrinks.
+  Widget _collapsedSlot({
+    required Widget pane,
+    required double paneLayoutWidth,
+    required WidgetBuilder? railBuilder,
+    required AlignmentDirectional alignment,
+  }) {
+    final held = OverflowBox(
+      minWidth: paneLayoutWidth,
+      maxWidth: paneLayoutWidth,
+      alignment: alignment,
+      child: pane,
+    );
+    if (railBuilder == null) return ClipRect(child: held);
+    // StackFit.expand — the stack must take the slot's size, not the
+    // offstage child's zero size.
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Offstage(child: TickerMode(enabled: false, child: held)),
+        Builder(builder: railBuilder),
+      ],
+    );
+  }
+
   /// Formats the directional-start pane's share after a model-space
   /// [delta], clamped to the pane limits, for the screen-reader value
   /// contract.
@@ -468,13 +508,11 @@ class _AdaptiveSplitState extends State<AdaptiveSplit>
       child: widget.primaryBuilder(context, true),
     );
     if (collapsed == PaneSide.start) {
-      primaryContent = ClipRect(
-        child: OverflowBox(
-          minWidth: widget.paneConfig.minListWidth,
-          maxWidth: widget.paneConfig.minListWidth,
-          alignment: AlignmentDirectional.centerStart,
-          child: primaryContent,
-        ),
+      primaryContent = _collapsedSlot(
+        pane: primaryContent,
+        paneLayoutWidth: widget.paneConfig.minListWidth,
+        railBuilder: widget.collapsedPrimaryBuilder,
+        alignment: AlignmentDirectional.centerStart,
       );
     }
     final primaryPane = SizedBox(width: primaryWidth, child: primaryContent);
@@ -484,15 +522,11 @@ class _AdaptiveSplitState extends State<AdaptiveSplit>
       child: widget.secondaryBuilder(context, true),
     );
     if (collapsed == PaneSide.end) {
-      final minSecondary =
-          availableWidth * (1 - widget.paneConfig.maxListRatio);
-      secondaryContent = ClipRect(
-        child: OverflowBox(
-          minWidth: minSecondary,
-          maxWidth: minSecondary,
-          alignment: AlignmentDirectional.centerEnd,
-          child: secondaryContent,
-        ),
+      secondaryContent = _collapsedSlot(
+        pane: secondaryContent,
+        paneLayoutWidth: availableWidth * (1 - widget.paneConfig.maxListRatio),
+        railBuilder: widget.collapsedSecondaryBuilder,
+        alignment: AlignmentDirectional.centerEnd,
       );
     }
     final secondaryPane = Expanded(child: secondaryContent);

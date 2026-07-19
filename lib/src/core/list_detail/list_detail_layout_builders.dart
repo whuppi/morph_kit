@@ -55,18 +55,13 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
 
     final collapsed = _paneWidth.collapsed;
 
-    Widget list = widget.listBuilder(context, selectedId, _handleSelect);
+    Widget list = _keyedList(selectedId);
     if (collapsed == PaneSide.start) {
-      // A collapsed pane's content stays laid out at its minimum width —
-      // its last legal layout — and clips as the slot shrinks. Content
-      // never reflows below the floor the app designed for.
-      list = ClipRect(
-        child: OverflowBox(
-          minWidth: widget.paneConfig.minListWidth,
-          maxWidth: widget.paneConfig.minListWidth,
-          alignment: AlignmentDirectional.centerStart,
-          child: list,
-        ),
+      list = _collapsedSlot(
+        pane: list,
+        paneLayoutWidth: widget.paneConfig.minListWidth,
+        railBuilder: widget.collapsedListBuilder,
+        alignment: AlignmentDirectional.centerStart,
       );
     } else if (entry < 1.0 &&
         widget.paneConfig.entryStyle == ExpandedEntryStyle.reveal) {
@@ -112,14 +107,11 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
               ),
       );
       if (collapsed == PaneSide.end) {
-        // Same clip-at-floor discipline as a collapsed start pane.
-        detailSlot = ClipRect(
-          child: OverflowBox(
-            minWidth: minDetailWidth,
-            maxWidth: minDetailWidth,
-            alignment: AlignmentDirectional.centerEnd,
-            child: detailSlot,
-          ),
+        detailSlot = _collapsedSlot(
+          pane: detailSlot,
+          paneLayoutWidth: minDetailWidth,
+          railBuilder: widget.collapsedDetailBuilder,
+          alignment: AlignmentDirectional.centerEnd,
         );
       } else if (listOnly && pane < 1.0) {
         // The arriving pane reveals from the end edge laid at its FINAL
@@ -233,7 +225,7 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
         Positioned.fill(
           child: ExcludeSemantics(
             excluding: showDetail,
-            child: widget.listBuilder(context, selectedId, _handleSelect),
+            child: _keyedList(selectedId),
           ),
         ),
         // Detail — slides over list, stays during dismiss animation
@@ -300,7 +292,7 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
   Widget buildCompactOverlayList() {
     final selectedId = _controller.selectedId;
 
-    Widget list = widget.listBuilder(context, selectedId, _handleSelect);
+    Widget list = _keyedList(selectedId);
     if (widget.compactConfig.handleBackGesture) {
       list = PopScope(
         canPop: selectedId == null,
@@ -341,21 +333,49 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
         // LIST — the bridge only keeps the element alive, invisibly.
         return Stack(
           children: [
-            Positioned.fill(
-              child: widget.listBuilder(context, selectedId, _handleSelect),
-            ),
+            Positioned.fill(child: _keyedList(selectedId)),
             Offstage(child: keyed),
           ],
         );
       }
       return keyed;
     }
-    return widget.listBuilder(context, selectedId, _handleSelect);
+    return _keyedList(selectedId);
   }
 
   // ===========================================================================
   // SHARED SLIDING DETAIL (used by inline and overlay compact modes)
   // ===========================================================================
+
+  /// A collapsed pane's slot. With a rail builder the rail lays out at
+  /// the REAL slot width while the pane parks offstage, state alive
+  /// (tickers paused) — the app renders a purpose-built icon rail.
+  /// Without one, the pane stays laid out at its floor width — its last
+  /// legal layout — and clips as the slot shrinks: content never
+  /// reflows below the floor the app designed for.
+  Widget _collapsedSlot({
+    required Widget pane,
+    required double paneLayoutWidth,
+    required WidgetBuilder? railBuilder,
+    required AlignmentDirectional alignment,
+  }) {
+    final held = OverflowBox(
+      minWidth: paneLayoutWidth,
+      maxWidth: paneLayoutWidth,
+      alignment: alignment,
+      child: pane,
+    );
+    if (railBuilder == null) return ClipRect(child: held);
+    // StackFit.expand — the stack must take the slot's size, not the
+    // offstage child's zero size.
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Offstage(child: TickerMode(enabled: false, child: held)),
+        Builder(builder: railBuilder),
+      ],
+    );
+  }
 
   /// Formats the start pane's share after [delta], clamped to the pane
   /// limits, for the screen-reader value contract.

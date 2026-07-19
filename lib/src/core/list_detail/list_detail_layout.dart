@@ -88,6 +88,8 @@ class ListDetailLayout<T> extends StatefulWidget {
     required this.listBuilder,
     required this.detailBuilder,
     this.emptyStateBuilder,
+    this.collapsedListBuilder,
+    this.collapsedDetailBuilder,
     this.dividerBuilder,
     this.expandedBreakpoint,
     this.paneConfig = const PaneConfig(),
@@ -108,6 +110,17 @@ class ListDetailLayout<T> extends StatefulWidget {
   /// Builder for the empty state shown in expanded layout when nothing is selected.
   /// Null by default (shows empty space). Use a shipped component or your own.
   final WidgetBuilder? emptyStateBuilder;
+
+  /// What a collapsed list pane shows, laid out at the REAL slot width
+  /// (`PaneConfig.collapsedSize`) — the icon-rail slot. While it shows,
+  /// the list pane parks offstage with its state alive; restoring brings
+  /// the same instance back. Null keeps the default: the list clipped at
+  /// its minimum width. The builder's context sits under [PaneScope],
+  /// so `PaneScope.of(context).restore` is the expand affordance.
+  final WidgetBuilder? collapsedListBuilder;
+
+  /// Same slot for a collapsed detail pane ([PaneCollapsible.end]).
+  final WidgetBuilder? collapsedDetailBuilder;
 
   /// Builder for the expanded-layout pane divider.
   /// Null by default (invisible drag zone). Use a shipped component or your own.
@@ -243,6 +256,18 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
   // ---------------------------------------------------------------------------
 
   final GlobalKey _detailKey = GlobalKey();
+
+  /// Same guarantee for the list pane: wraps every list slot so mode
+  /// switches, collapse clipping, and rail parking reparent the live
+  /// element instead of remounting it.
+  final GlobalKey _listPaneKey = GlobalKey();
+
+  /// The list pane under its reparenting key. Every build site uses
+  /// this — exactly one renders per frame.
+  Widget _keyedList(T? selectedId) => KeyedSubtree(
+    key: _listPaneKey,
+    child: widget.listBuilder(context, selectedId, _handleSelect),
+  );
 
   // ---------------------------------------------------------------------------
   // Overlay-based compact detail (CompactDetailMode.overlay)

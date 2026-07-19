@@ -62,6 +62,7 @@ while an active row is not `DONE` or `WONT_DO`. Statuses: `DONE` ·
 | Pixels resize mode (pane fixed across resizes) | DONE | `PaneResizeMode.pixels` |
 | Min-width / max-ratio clamping | DONE | Min wins when the window is too narrow for the ratio cap |
 | Snap-collapse panes (VS Code spec) | DONE | `PaneCollapsible` per side + `collapsedSize` icon-rail; half-minimum threshold, cached-width restore, pull-tab `HandleDivider`; directional API preserved for `AdaptiveSplit` end-positioned primary |
+| Collapsed icon-rail slots | DONE | `collapsedListBuilder`/`collapsedDetailBuilder` (+ split equivalents): rail lays out at the real `collapsedSize`; the pane parks offstage (tickers paused) with its state alive; list pane gained its own reparenting GlobalKey |
 | Divider keyboard + screen-reader support | DONE | WAI-ARIA window splitter: Tab-focusable, arrows resize, Enter toggles collapse, Home/End jump, double-click resets; semantics increase/decrease with pane-share value |
 | PaneScope (pane state for descendants) | DONE | `collapsed`/`isExpanded` + `collapse`/`restore` actions; the hamburger recipe |
 | ThreePaneLayout: role-priority partitions | DONE | 2-3 panes, two width thresholds; priority picks who shows, list order picks where; flexible pane = highest visible priority; shared width model + divider region per side pane |
