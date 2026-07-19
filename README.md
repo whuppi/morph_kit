@@ -8,13 +8,13 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="license: MIT"></a>
 </p>
 
-Layout widgets that morph between phone and tablet / desktop forms. On a phone, the detail pane slides over the list and covers the bottom nav; on a wide window, the two panes sit side by side with a draggable divider. When the user resizes a desktop window across the breakpoint, the panes rearrange — and the widgets inside them keep their state. A half-typed message survives the resize, because the detail is moved in the tree, not rebuilt.
+Layout widgets that morph between phone and desktop forms. On a phone, the detail slides over the list. On a wide window, the panes sit side by side with a draggable divider. Resize across the breakpoint and the panes rearrange — while the widgets inside them **keep their state**. A half-typed message survives the resize, because the pane is moved in the tree, not rebuilt.
 
-Three layouts carry the package today: `ListDetailLayout` (list + selected detail, the messaging-app shape), `SplitLayout` (two always-present panes, the player shape), and `showAdaptiveModal` (a real Material dialog on wide windows that is a real Material bottom sheet on narrow ones). Every layout that joins them follows the same rules: router-agnostic, state-management-agnostic, and the smallest possible integration surface — a plain `ChangeNotifier` controller, or just an awaited future.
+Router-agnostic and state-management-agnostic: the integration surface is a plain `ChangeNotifier` controller, or just an awaited future.
 
-> **The guarantee that makes this package exist:** pane and modal content *instances* survive the compact ↔ expanded morph. The standard adaptive components (Compose's `ListDetailPaneScaffold`, route-based detail pages) rebuild the detail from saved state instead — cursor position, scroll offset, and in-flight animations reset. Here they don't.
+> **The guarantee that makes this package exist:** pane and modal content *instances* survive the compact ↔ expanded morph. The standard adaptive components (Compose's `ListDetailPaneScaffold`, route-based detail pages) rebuild content from saved state instead — cursor position, scroll offset, and in-flight animations reset. Here they don't.
 
-> **Status:** 0.x. The API can change between minor versions until `1.0.0` — pre-1.0, the minor is the breaking axis, so pin `^0.N.0` and read the changelog on minor bumps.
+> **Status:** 0.x. Pre-1.0 the minor version is the breaking axis — pin `^0.N.0` and read the changelog on minor bumps.
 
 > like it? a [⭐ star](https://github.com/whuppi/adaptive_layouts) or [👍 like](https://pub.dev/packages/adaptive_layouts) is the entire marketing budget. [Bugs & features →](https://github.com/whuppi/adaptive_layouts/issues)
 
@@ -24,15 +24,20 @@ Three layouts carry the package today: `ListDetailLayout` (list + selected detai
 <summary><b>👀 Peek inside</b></summary>
 
 - [Install](#install)
-- [Quick start](#quick-start)
-- [Usage](#usage)
+- [Which widget?](#which-widget)
+- [ListDetailLayout](#listdetaillayout)
+  - [Quick start](#quick-start)
   - [The controller](#the-controller)
-  - [Covering the bottom nav (overlay mode)](#covering-the-bottom-nav-overlay-mode)
-  - [Sizing the panes](#sizing-the-panes)
-  - [Two panes without a selection](#two-panes-without-a-selection)
-  - [A modal that swaps between dialog and bottom sheet](#a-modal-that-swaps-between-dialog-and-bottom-sheet)
-  - [One breakpoint for the whole app](#one-breakpoint-for-the-whole-app)
-- [Why widget-level morphing](#why-widget-level-morphing)
+  - [Compact: three detail modes](#compact-three-detail-modes)
+  - [Expanded: the empty pane](#expanded-the-empty-pane)
+- [SplitLayout](#splitlayout)
+- [The divider (both layouts)](#the-divider-both-layouts)
+  - [Sizing](#sizing)
+  - [Snap-collapse and icon rails](#snap-collapse-and-icon-rails)
+  - [Keyboard and screen readers](#keyboard-and-screen-readers)
+- [showAdaptiveModal](#showadaptivemodal)
+- [How resizing behaves](#how-resizing-behaves)
+- [One breakpoint for the whole app](#one-breakpoint-for-the-whole-app)
 - [The example app](#the-example-app)
 - [Platform support](#platform-support)
 - [Not in the box](#not-in-the-box)
@@ -54,32 +59,44 @@ Pure Flutter — no native code, no assets, no setup, any platform.
 
 ---
 
-## Quick start
+## Which widget?
 
-Two builders, and the layout handles the rest — breakpoint switching, slide animation, swipe-to-dismiss, back-gesture handling, state preservation:
+Three widgets, one question each:
+
+| You have | Use | Compact becomes |
+|---|---|---|
+| A list that **drives** a detail (chats, tickets, inbox) | [`ListDetailLayout`](#listdetaillayout) | navigation: the detail slides over, or becomes a real page |
+| Two panes that are **peers** — nobody selects anybody (player + queue, editor + preview) | [`SplitLayout`](#splitlayout) | a vertical stack, or the primary alone |
+| A one-off surface the user summons (form, picker, confirmation) | [`showAdaptiveModal`](#showadaptivemodal) | a real bottom sheet (a real dialog when wide) |
+
+All three share the same breakpoint (default 720, [configurable app-wide](#one-breakpoint-for-the-whole-app)), and all three keep live widget state across the morph. Everything below the breakpoint is called **compact**; at or above it, **expanded**.
+
+---
+
+## ListDetailLayout
+
+### Quick start
+
+Two builders, and the layout handles the rest — breakpoint switching, slide animation, swipe-to-dismiss, back gestures, state preservation:
 
 ```dart
 import 'package:adaptive_layouts/adaptive_layouts.dart';
 
 ListDetailLayout<String>(
   listBuilder: (context, selectedId, onSelect) => ChatList(
-    selectedId: selectedId,   // highlight the open row on wide layouts
+    selectedId: selectedId,   // highlight the open row on expanded
     onTap: onSelect,          // tapping a row opens its detail
   ),
   detailBuilder: (context, id, mode, onDismiss) => ChatScreen(
     id: id,
-    showBackButton: mode == DetailLayoutMode.stacked,     // phone: back arrow
-    showCloseButton: mode == DetailLayoutMode.sideBySide, // wide: close X
+    showBackButton: mode == DetailLayoutMode.stacked,     // compact: back arrow
+    showCloseButton: mode == DetailLayoutMode.sideBySide, // expanded: close X
     onBack: onDismiss,
   ),
 )
 ```
 
-Below 720px the detail slides over the list (`DetailLayoutMode.stacked`); at 720px and above the panes share the width (`DetailLayoutMode.sideBySide`). The `mode` argument tells your detail which affordance to show — everything else is the same widget.
-
----
-
-## Usage
+Compact: the detail slides over the list (`DetailLayoutMode.stacked`). Expanded: the panes share the width (`DetailLayoutMode.sideBySide`). The `mode` argument tells your detail which affordance to show — everything else is the same widget.
 
 ### The controller
 
@@ -88,74 +105,35 @@ Below 720px the detail slides over the list (`DetailLayoutMode.stacked`); at 720
 ```dart
 final controller = ListDetailController<String>();
 
-ListDetailLayout<String>(
-  controller: controller,
-  listBuilder: ...,
-  detailBuilder: ...,
-)
-
 controller.select('chat-42');   // open programmatically (deep link, router)
 controller.dismiss();           // close with the exit animation
+
+controller.hasSelection;        // data state — flips the instant dismiss() runs
+controller.isDetailVisible;     // visual state — stays true until the exit
+                                // animation finishes (app-shell timing)
 ```
 
-Two reads with different jobs:
+URL sync sits on top of these members; the [example app](example/) ships a complete `ListDetailRouter` for auto_route as reference wiring.
 
-```dart
-controller.hasSelection;    // data state — flips the instant dismiss() runs
-controller.isDetailVisible; // visual state — stays true until the exit
-                            // animation finishes
-```
+### Compact: three detail modes
 
-`isDetailVisible` is what an app shell wants for timing UI around the detail — it answers "is the pane still on screen", not "is something selected". URL sync sits on top of these three members; the [example app](example/) ships a complete `ListDetailRouter` for auto_route as reference wiring.
-
-### Covering the bottom nav (overlay mode)
-
-By default the compact detail renders inline, inside the layout's own bounds — it cannot cover a bottom nav or tab bar that sits outside it. Overlay mode can:
+`compactDetailMode` decides what the open detail is, on compact widths:
 
 ```dart
 ListDetailLayout<String>(
-  compactDetailMode: CompactDetailMode.overlay,
+  compactDetailMode: CompactDetailMode.overlay,   // or .inline / .route
   ...
 )
 ```
 
-The detail now renders in the Navigator's overlay, sliding over everything the Navigator covers — bottom nav, tab bars — while staying in the widget tree with its state intact. `CompactConfig(useRootOverlay: true)` targets the root overlay instead, covering ancestors above the Navigator too.
+- **`inline`** (default) — the detail renders inside the layout's own bounds. Surrounding chrome (bottom nav, tab bar) stays visible.
+- **`overlay`** — the detail renders in the Navigator's overlay and covers everything the Navigator covers: bottom nav, tab bars. Built for kept-alive tab navigation — inactive tabs suppress their overlays automatically. `CompactConfig(useRootOverlay: true)` covers ancestors above the Navigator too.
+- **`route`** — selecting pushes a genuine page route holding the detail. Platform transitions, **predictive back**, Cupertino edge swipes — all from your app's `PageTransitionsTheme`, evolving with Flutter. Resize across the breakpoint and the same detail element reparents between the route and the side-by-side pane. Hidden kept-alive tabs remove their route (keeping the selection and the detail's state) and restore it instantly when shown again.
 
-Overlay mode is built for kept-alive tab navigation: when several overlay-mode layouts are mounted at once (one per tab) and only one tab is painted, the inactive tabs' overlays suppress themselves automatically — hiding is immediate, reappearing takes one frame. Works with `IndexedStack`, `Offstage`, tab routers, or any parent that stops painting inactive children.
+Rule of thumb: `inline` when the chrome should stay, `overlay` for a full-screen feel without real navigation, `route` when the detail should behave like a native page.
 
-And when the compact detail should be a real page — real platform transitions, **predictive back**, Cupertino edge swipes, all from your app's `PageTransitionsTheme`:
-
-```dart
-ListDetailLayout<String>(
-  compactDetailMode: CompactDetailMode.route,
-  ...
-)
-```
-
-Selecting pushes a genuine page route holding the detail; back is the route's own (no interception). Resize across the breakpoint and the same detail element reparents between the route and the side-by-side pane — the state guarantee holds through real navigation. Hidden kept-alive tabs remove their route (keeping the selection and the detail's state) and restore it instantly when shown again — including when the breakpoint crossing itself happens while the tab is hidden.
-
-One app-side note: every route push makes Flutter scan the shell for `Hero` tags, kept-alive tabs included. If several `FloatingActionButton`s coexist under one page (one per tab), give them explicit `heroTag`s — the shared default tag asserts on the first push.
-
-### The empty detail pane — three schools
-
-When nothing is selected at expanded width, list-detail apps follow one of three established patterns; the package supports all three:
-
-1. **Placeholder** (default) — the pane stays reserved and shows `emptyStateBuilder` (`IconMessageEmpty` ships as a convenience). The Apple Mail / Outlook reading-pane shape.
-2. **Auto-select** — never show emptiness: when the list loads and nothing is selected, select the first (or last-used) item from your controller: `controller.select(items.first.id)`. The Notes / Slack shape. This is a data decision, so it stays app-side — the layout doesn't know your data, and auto-selecting can be wrong (empty lists, destructive contexts, deep links). The example app ships the recipe behind a ⚙ toggle.
-3. **On-demand pane** — the list owns the full width until a selection summons the pane, which reveals from the end edge; dismissing hands the width back. Material's "supporting pane" shape (Gmail without a reading pane):
-
-```dart
-ListDetailLayout<String>(
-  expandedEmptyBehavior: ExpandedEmptyBehavior.listOnly,
-  ...
-)
-```
-
-A side effect worth knowing: with `listOnly`, compact and expanded look identical when nothing is selected (a full-width list), so breakpoint crossings without a selection stop being a visible event entirely.
-
-### Picking a compact detail mode
-
-All three modes keep the state guarantee across resizes. They differ in what the open detail covers and who owns the back gesture:
+<details>
+<summary><b>🧰 The full mode comparison table</b></summary>
 
 | | `inline` | `overlay` | `route` |
 |---|---|---|---|
@@ -168,19 +146,61 @@ All three modes keep the state guarantee across resizes. They differ in what the
 | Escape dismisses (desktop) | yes, when focus is in the detail | yes, when focus is in the detail | yes — the route's own `DismissIntent` |
 | Crossing into compact, detail open | detail grows out of its pane | detail grows out of its pane | the route's real entrance plays |
 | Crossing into expanded, detail open | list slides in beside the detail | list slides in beside the detail | list slides in beside the detail |
-| Hero discipline (`heroTag`s) | not needed | not needed | needed |
+| Hero discipline (`heroTag`s) | not needed | not needed | needed — explicit `heroTag` per FAB when several coexist under one page |
 
-Rule of thumb: `inline` when the surrounding chrome should stay present, `overlay` for a full-screen feel without real navigation, `route` when the detail should behave like a native page and inherit every platform back-gesture convention as it evolves. The per-value doc comments on `CompactDetailMode` carry the full contracts.
+The per-value doc comments on `CompactDetailMode` carry the full contracts.
 
-Breakpoint crossings animate the pane re-arrangement in every mode — fold/unfold, rotation, split-screen snap, or dragging the window edge across the threshold. Only the pane geometry itself tracks the drag without motion (a lagging pane would fight your hand); the arrangement flip is always animated, the way Compose's canonical scaffolds and desktop sidebars behave. That includes the EMPTY placeholder pane: with nothing selected it reveals from the end edge on expand and retreats into it on shrink.
+</details>
 
-Entering expanded, the arriving list is laid out at its final width and slides in clipped — content never reflows mid-entry, the way a desktop sidebar arrives. Prefer the list to lay out live and grow into its pane instead? `PaneConfig(entryStyle: ExpandedEntryStyle.resize)`.
+### Expanded: the empty pane
 
-The divider remembers. A dragged divider position survives compact spells, window resizes, and rebuilds — `PaneConfig` compares by value, so constructing it inline in `build` never resets the width model. Prefer a fresh divider on every return to the wide layout instead? `PaneConfig(widthMemory: PaneWidthMemory.resetOnReentry)`.
+When nothing is selected at expanded width, list-detail apps follow one of three established patterns; the package supports all three:
 
-### Sizing the panes
+1. **Placeholder** (default) — the pane stays reserved and shows `emptyStateBuilder`. The Apple Mail reading-pane pattern.
 
-`PaneConfig` is pure data; the divider visual is a builder you pick or write:
+   ```dart
+   emptyStateBuilder: IconMessageEmpty.of(
+     icon: Icons.chat_bubble_outline,
+     message: 'Select a conversation',
+   )
+   ```
+
+2. **Auto-select** — never show emptiness: when the list loads with no selection, call `controller.select(items.first.id)`. The Notes / Slack pattern. This is a data decision, so it stays app-side — the layout doesn't know your data, and auto-selecting can be wrong (empty lists, destructive contexts, deep links). The example ships the recipe behind a ⚙ toggle.
+
+3. **On-demand pane** — the list owns the full width until a selection reveals the pane from the end edge; dismissing hands the width back. Material's "supporting pane" pattern:
+
+   ```dart
+   expandedEmptyBehavior: ExpandedEmptyBehavior.listOnly
+   ```
+
+   Side effect worth knowing: with `listOnly`, compact and expanded look identical when nothing is selected (a full-width list), so breakpoint crossings without a selection stop being a visible event.
+
+---
+
+## SplitLayout
+
+Two panes that are peers — both always exist, neither drives the other:
+
+```dart
+SplitLayout(
+  primaryBuilder: (context, isExpanded) => PlayerHero(),
+  secondaryBuilder: (context, isExpanded) => QueueList(),
+  dividerBuilder: HandleDivider.builder,
+  compactBehavior: SplitCompactBehavior.stack,  // or .hidden
+)
+```
+
+Expanded: side by side with the draggable divider (primary at the start or end via `primaryPosition`). Compact: a vertical stack, or the primary alone. Both panes keep their state across the morph.
+
+Everything in [the divider section](#the-divider-both-layouts) — sizing, anchors, collapse, rails, keyboard — applies here identically (`collapsedPrimaryBuilder` / `collapsedSecondaryBuilder` are the rail slots).
+
+---
+
+## The divider (both layouts)
+
+`ListDetailLayout` and `SplitLayout` share one divider system: the same width model, the same gestures, the same accessibility. Configured through `PaneConfig` (pure data) plus a divider visual you pick or write.
+
+### Sizing
 
 ```dart
 ListDetailLayout<String>(
@@ -194,9 +214,10 @@ ListDetailLayout<String>(
 )
 ```
 
-Ships with two dividers — `HandleDivider` (resize cursor, three-dot handle, settle tint) and `MaterialDivider` (thin line) — or pass your own `DividerBuilder`. Null means an invisible drag zone: resizing still works, nothing is drawn.
+Ships with two dividers — `HandleDivider` (resize cursor, three-dot handle, settle tint, pull tab when collapsed) and `MaterialDivider` (thin line) — or pass your own `DividerBuilder`. Null means an invisible drag zone: resizing still works, nothing is drawn.
 
-Two extras for desktop-grade feel:
+<details>
+<summary><b>🧰 Anchors, resize modes, width memory</b></summary>
 
 ```dart
 // Snap points: on release, the divider animates to the nearest anchor.
@@ -208,12 +229,19 @@ PaneConfig(
 // Fixed width: the pane keeps its pixel width when the window resizes
 // (default is ratio — the pane scales with the window).
 PaneConfig(resizeMode: PaneResizeMode.pixels)
+
+// Fresh divider on every return to expanded
+// (default is persist — a dragged position survives compact spells).
+PaneConfig(widthMemory: PaneWidthMemory.resetOnReentry)
 ```
 
-### Snap-collapse and the divider's keyboard
+The divider remembers by default: a dragged position survives compact spells, window resizes, and rebuilds. `PaneConfig` compares by value, so constructing it inline in `build` never resets the width model.
 
-Panes can collapse — force the divider past a pane's minimum and it snaps
-shut, VS Code style. Opt in per side:
+</details>
+
+### Snap-collapse and icon rails
+
+Expanded-only: force the divider past a pane's minimum and the pane snaps shut, the way desktop split views do. Opt in per side:
 
 ```dart
 PaneConfig(
@@ -222,45 +250,9 @@ PaneConfig(
 )
 ```
 
-The mechanics follow desktop split views: dragging past the limit by half
-the pane's minimum snaps it to `collapsedSize` with the pre-collapse width
-remembered; releasing short of that springs back. The parked divider stays
-grabbable (the shipped `HandleDivider` turns into a pull tab), and the
-surviving pane can offer its own affordance by reading `PaneScope`:
+Dragging past the limit by half the pane's minimum snaps it to `collapsedSize`, with the pre-collapse width remembered; releasing short of that springs back. The parked divider stays grabbable — pull it back out to restore.
 
-```dart
-// Inside a detail pane — the show-sidebar recipe. Gate on
-// collapsedSize == 0: a visible icon rail already carries the expand
-// control, so only a FULLY hidden pane needs this affordance.
-final scope = PaneScope.maybeOf(context);
-if (scope?.collapsed == PaneSide.start && scope!.collapsedSize == 0)
-  IconButton(
-    icon: const Icon(Icons.view_sidebar_outlined),
-    onPressed: scope.restore,
-  )
-```
-
-`PaneScope` also exposes `collapse(PaneSide)` for app-driven collapse
-buttons. Programmatic collapse/restore snap instantly; the drag path is
-the animated one.
-
-The divider itself follows the WAI-ARIA window-splitter pattern — it's
-focusable and screen-reader adjustable out of the box:
-
-| Input | Effect |
-|---|---|
-| Arrow left / right | Resize by 24px |
-| Enter | Collapse the allowed side / restore |
-| Home / End | Animate to the minimum / maximum |
-| Double click | Reset to the default width (restore first if collapsed) |
-| Screen reader | Adjustable element announcing the pane's share ("36%") |
-
-Localize the announcement via `PaneConfig(dividerSemanticsLabel: ...)`.
-
-With a non-zero `collapsedSize`, the collapsed pane clips its normal
-content at its minimum width by default. For a real icon rail, give the
-slot purpose-built content — it lays out at the actual collapsed width,
-and the pane parks offstage with its state alive until restored:
+**The rail.** With a non-zero `collapsedSize`, give the collapsed pane purpose-built content — it lays out at the actual collapsed width, and the real pane parks offstage with its state alive until restored:
 
 ```dart
 ListDetailLayout(
@@ -271,36 +263,44 @@ ListDetailLayout(
 )
 ```
 
-(`collapsedDetailBuilder` covers the end side; `SplitLayout` has
-`collapsedPrimaryBuilder` / `collapsedSecondaryBuilder`.)
+Without a rail builder, the collapsed pane shows its normal content clipped at its minimum width.
 
-For the wide layout's "nothing selected" area, pass any builder — or the shipped one:
-
-```dart
-emptyStateBuilder: IconMessageEmpty.of(
-  icon: Icons.chat_bubble_outline,
-  message: 'Select a conversation',
-)
-```
-
-### Two panes without a selection
-
-`SplitLayout` is the sibling for screens where both panes always exist — a player with its queue, an editor with its preview:
+**The scope.** Any widget inside either pane can read the collapse state and act on it through `PaneScope` — the show-sidebar recipe:
 
 ```dart
-SplitLayout(
-  primaryBuilder: (context, isExpanded) => PlayerHero(),
-  secondaryBuilder: (context, isExpanded) => QueueList(),
-  dividerBuilder: HandleDivider.builder,
-  compactBehavior: SplitCompactBehavior.stack,  // or .hidden
-)
+// Inside a detail pane. Gate on collapsedSize == 0: a visible icon
+// rail already carries the expand control, so only a FULLY hidden
+// pane needs its own affordance.
+final scope = PaneScope.maybeOf(context);
+if (scope?.collapsed == PaneSide.start && scope!.collapsedSize == 0)
+  IconButton(
+    icon: const Icon(Icons.view_sidebar_outlined),
+    onPressed: scope.restore,
+  )
 ```
 
-Wide: side by side with the same draggable divider (primary at the start or end via `primaryPosition`). Narrow: a vertical stack, or primary only. Both panes keep their state across the morph, same as the detail pane does.
+`PaneScope` also exposes `collapse(PaneSide)` for app-driven collapse buttons. Programmatic collapse and restore snap instantly; the drag path is the animated one.
 
-### A modal that swaps between dialog and bottom sheet
+### Keyboard and screen readers
 
-`showAdaptiveModal` presents a real Material dialog on wide windows and a real Material bottom sheet on narrow ones — `DialogRoute` and `ModalBottomSheetRoute` underneath, so your `DialogTheme` / `BottomSheetTheme`, Material's drag physics, and back handling all apply. Resize across the breakpoint while it is open and the modal plays a container transform: the surface glides and reshapes from one form to the other with the live content inside, and a half-typed form field survives the trip. `ModalConfig(morph: false)` swaps instantly instead.
+The divider follows the WAI-ARIA window-splitter pattern out of the box:
+
+| Input | Effect |
+|---|---|
+| Tab | focuses the divider (`DividerState.isFocused` for your visual) |
+| Arrow left / right | resize by 24px |
+| Enter | collapse the allowed side / restore |
+| Home / End | animate to the minimum / maximum |
+| Double click | reset to the default width (restore first if collapsed) |
+| Screen reader | adjustable element announcing the pane's share ("36%") |
+
+Localize the announcement via `PaneConfig(dividerSemanticsLabel: ...)`.
+
+---
+
+## showAdaptiveModal
+
+A real Material dialog on expanded, a real Material bottom sheet on compact — `DialogRoute` and `ModalBottomSheetRoute` underneath, so your `DialogTheme` / `BottomSheetTheme`, Material's drag physics, and back handling all apply:
 
 ```dart
 final choice = await showAdaptiveModal<String>(
@@ -313,13 +313,62 @@ final choice = await showAdaptiveModal<String>(
 );
 ```
 
-`ModalConfig` forwards Flutter's own route parameters under Flutter's own names — barrier label and dismissibility, safe area, sheet constraints and drag, anchor points, focus and traversal behavior, entrance `AnimationStyle`s — with null always meaning "Flutter's default", so new platform behavior reaches you without package releases. Visual styling (shape, elevation, drag-handle look) is deliberately NOT duplicated here: it flows through `DialogThemeData` / `BottomSheetThemeData` as usual. Two params are withheld on purpose: the sheet's `clipBehavior` (the container transform's landing is pixel-matched against `Clip.antiAlias`) and `transitionAnimationController` (the swap machinery owns the routes' lifecycles).
+Resize across the breakpoint while it is open and the modal plays a container transform: the surface glides and reshapes from one form to the other **with the live content inside** — a half-typed form field survives the trip. The returned future completes with the pop result no matter how many swaps happened. `ModalConfig(morph: false)` swaps instantly instead.
 
-The returned future completes with the pop result no matter how many form swaps happened while the modal was open. Each form keeps its own Material surface tone (`surfaceContainerHigh` for dialogs, `surfaceContainerLow` for sheets, themable as usual); `ModalConfig(backgroundColor: ...)` pins one color across both forms when the crossfade is unwanted. One contract: return the same root widget type for both modes (like the `SizedBox` above) — the content moves between the two routes under a stable key, and a changed root type would defeat the move.
+One contract: return the same root widget type for both modes (like the `SizedBox` above) — the content moves between the two routes under a stable key, and a changed root type would defeat the move.
 
-### One breakpoint for the whole app
+<details>
+<summary><b>🧰 What ModalConfig forwards, and what it deliberately doesn't</b></summary>
 
-Set it once above `MaterialApp`; every layout in the subtree inherits it. A widget's own `expandedBreakpoint` parameter still wins when you need a local exception; with neither, the default is 720.
+`ModalConfig` forwards Flutter's own route parameters under Flutter's own names — barrier label and dismissibility, safe area, sheet constraints and drag, anchor points, focus and traversal behavior, entrance `AnimationStyle`s — with null always meaning "Flutter's default", so new platform behavior reaches you without package releases.
+
+Visual styling (shape, elevation, drag-handle look) is deliberately NOT duplicated here: it flows through `DialogThemeData` / `BottomSheetThemeData` as usual. Each form keeps its own Material surface tone (`surfaceContainerHigh` for dialogs, `surfaceContainerLow` for sheets); `ModalConfig(backgroundColor: ...)` pins one color across both forms.
+
+Two params are withheld on purpose: the sheet's `clipBehavior` (the container transform's landing is pixel-matched against `Clip.antiAlias`) and `transitionAnimationController` (the swap machinery owns the routes' lifecycles).
+
+</details>
+
+---
+
+## How resizing behaves
+
+The rules that hold across every widget and mode:
+
+- **State survives.** Pane and modal content mounts under stable keys; a breakpoint crossing reparents the live element instead of rebuilding it. Text fields, scroll positions, and running animations carry across.
+- **Crossings animate; drags track.** The arrangement flip (fold/unfold, rotation, window crossing the threshold) always animates, in both directions — including the empty placeholder pane. Pane *geometry* tracks a window drag without added motion, because a lagging pane would fight your hand.
+- **Arriving panes don't reflow.** Entering expanded, the list is laid out at its final width and slides in clipped — content never reflows mid-entry, the way a desktop sidebar arrives. Prefer live reflow? `PaneConfig(entryStyle: ExpandedEntryStyle.resize)`.
+- **Parked panes don't dance.** A collapsed pane arrives already collapsed: the rail docks at its parked width from the first expanded frame. The collapse animation belongs to the moment the user collapsed — a window resize isn't that moment.
+
+<details>
+<summary><b>🧩 Why not push the detail as a route on phones?</b></summary>
+
+A route-based compact detail gets platform behaviors free (predictive back, edge swipe), but the detail then lives inside a page — and pages rebuild their content from state. Carrying one widget instance between "pane 2 of a wide layout" and "a pushed route" means either lifting every piece of ephemeral state out of the widgets, or a fragile zero-transition page dance around duplicate `GlobalKey`s mid-animation.
+
+This package keeps both layouts inside one widget instead. The detail mounts under a stable `GlobalKey`, so the morph reparents the same element — Flutter's documented mechanism for moving a widget without losing its state. The cost is owned in exchange: the slide animation, swipe-to-dismiss, and back handling are implemented here rather than inherited from the Navigator. That trade — a stronger state guarantee for a self-implemented navigation feel — is the package's identity. (`CompactDetailMode.route` then earns the platform behaviors back on top, reparenting through a real route.)
+
+</details>
+
+<details>
+<summary><b>🧩 How overlay mode survives tab navigation</b></summary>
+
+An `OverlayPortal` paints in the Overlay, outside its parent — so a parent that stops painting (an inactive `IndexedStack` child) cannot take its overlay down with it. The layout closes that hole by probing paint itself: a render object reports "I was painted this frame", and the layout checks the flag during the next layout pass. Not painted last frame means the tab is inactive, and the overlay child collapses to nothing. The portal itself is shown once and never toggled, which sidesteps `OverlayPortalController`'s restriction against show/hide during layout. The full contract is in [`docs/UPDATING.md`](docs/UPDATING.md).
+
+</details>
+
+<details>
+<summary><b>🧩 Why the modal uses real Material routes</b></summary>
+
+The pane layouts own their navigation feel in exchange for the state guarantee. The modal gets both: each form is Flutter's own route, so theming, drag physics, and back handling are Material's — and framework improvements arrive with Flutter upgrades. On a breakpoint crossing the active route is atomically replaced in a single frame, and since every route of a Navigator lives in one Overlay — one element tree — the keyed content reparents into the new route instead of rebuilding. A session object proxies the pop result across swaps, so the caller's awaited future never notices.
+
+The swap animation is Material's container-transform pattern with one upgrade Material itself doesn't have: `Hero` and `OpenContainer` both rebuild the content they animate, while this flight carries the *live element* — the surface lerps rect, shape, color, and elevation between the two forms with your widget's state intact inside it.
+
+</details>
+
+---
+
+## One breakpoint for the whole app
+
+Set it once above `MaterialApp`; every layout and modal in the subtree inherits it. A widget's own `expandedBreakpoint` parameter still wins for a local exception; with neither, the default is 720.
 
 ```dart
 AdaptiveLayoutConfig(
@@ -330,38 +379,9 @@ AdaptiveLayoutConfig(
 
 ---
 
-## Why widget-level morphing
-
-<details>
-<summary><b>🧩 Why not push the detail as a route on phones?</b></summary>
-
-A route-based compact detail gets platform behaviors free (predictive back, edge swipe), but the detail then lives inside a page — and pages rebuild their content from state. Carrying one widget instance between "pane 2 of a wide layout" and "a pushed route" means either lifting every piece of ephemeral state out of the widgets, or a fragile zero-transition page dance around duplicate `GlobalKey`s mid-animation.
-
-This package keeps both layouts inside one widget instead. The detail mounts under a stable `GlobalKey`, so the morph reparents the same element — Flutter's documented mechanism for moving a widget without losing its state. The cost is owned in exchange: the slide animation, swipe-to-dismiss, and back handling are implemented here rather than inherited from the Navigator. That trade — a stronger state guarantee for a self-implemented navigation feel — is the package's identity.
-
-</details>
-
-<details>
-<summary><b>🧩 How overlay mode survives tab navigation</b></summary>
-
-An `OverlayPortal` paints in the Overlay, outside its parent — so a parent that stops painting (an inactive `IndexedStack` child) cannot take its overlay down with it. The layout closes that hole by probing paint itself: a render object reports "I was painted this frame", and the layout checks the flag during the next layout pass. Not painted last frame means the tab is inactive, and the overlay child collapses to nothing. The portal itself is shown once and never toggled, which sidesteps `OverlayPortalController`'s restriction against show/hide during layout. The full contract, including the invariants to keep when editing this machinery, is in [`docs/UPDATING.md`](docs/UPDATING.md).
-
-</details>
-
-<details>
-<summary><b>🧩 Why the modal uses real Material routes</b></summary>
-
-The pane layouts own their navigation feel in exchange for the state guarantee. The modal gets both: each form is Flutter's own route (`DialogRoute`, `ModalBottomSheetRoute`), so theming, drag-to-dismiss physics, and back handling are Material's — and framework improvements arrive with Flutter upgrades. On a breakpoint crossing the active route is atomically replaced in a single frame, and since every route of a Navigator lives in one Overlay — one element tree — the keyed content reparents into the new route instead of rebuilding. A session object proxies the pop result across swaps, so the caller's awaited future never notices.
-
-The swap animation is Material's container-transform pattern with one upgrade Material itself doesn't have: `Hero` and `OpenContainer` both rebuild the content they animate, while this flight carries the *live element* — the surface lerps rect, shape, color, and elevation between the two forms with your widget's state intact inside it. The destination route lays out a same-size placeholder whose live rect steers the landing each frame, so keyboard insets and content reflow are tracked automatically.
-
-</details>
-
----
-
 ## The example app
 
-[`example/`](example/) is a full app in one file, not a snippet gallery: three domains behind an adaptive shell (bottom nav ↔ rail), nested tab routers, URL-synced list-details in overlay mode inside every tab, adaptive modals, and a persistent strip above the router. It exists so package changes are tested against the hardest real topology — its `flutter test` journeys cover resize state preservation, overlay suppression across tabs, deep links, and auto-dismiss on deletion.
+[`example/`](example/) is a full app, not a snippet gallery: three domains behind an adaptive shell (bottom nav ↔ rail), nested tab routers, URL-synced list-details in every compact mode, collapsible panes with icon rails, adaptive modals, and a persistent strip above the router. It exists so package changes are tested against the hardest real topology — its `flutter test` journeys cover resize state preservation, overlay suppression across tabs, deep links, and auto-dismiss on deletion.
 
 ```sh
 cd example
@@ -384,7 +404,7 @@ Pure Flutter, no conditional imports, no platform code:
 ## Not in the box
 
 - **Router / URL integration** — deliberately. The controller is the seam; wire it to any router. The example ships complete auto_route reference wiring (`ListDetailRouter`, `MultiTypeListDetailRouter`) to copy from.
-- **Selection validation** — the layout does not know whether `chat-42` still exists. When an entity is deleted, the app clears the selection (the example's `selectedIdExists` pattern shows how, including why the dismissal must be deferred out of the build phase).
+- **Selection validation** — the layout does not know whether `chat-42` still exists. When an entity is deleted, the app clears the selection (the example's `selectedIdExists` pattern shows how).
 - **Navigation bars, rails, tab bars** — this package lays out panes; the shell around them is your app's.
 
 ---
