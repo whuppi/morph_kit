@@ -5,7 +5,7 @@
 #
 # Uses fvm by default. Contributors without fvm can override:
 # make check DART=dart FLUTTER=flutter
-# adaptive_layouts is a Flutter package — the suite runs on flutter_test
+# morph_kit is a Flutter package — the suite runs on flutter_test
 # (host VM, no device, no browser). example/ is its own Flutter app
 # package, resolved / analyzed from its OWN root (analyze_core gives it
 # a `flutter analyze` pass; the journeys drive its real UI).

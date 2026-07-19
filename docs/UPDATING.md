@@ -1,6 +1,6 @@
-# adaptive_layouts — Updating
+# morph_kit — Updating
 
-> **Type:** maintenance · **Scope:** adaptive_layouts · **Last verified:** 2026-07-19
+> **Type:** maintenance · **Scope:** morph_kit · **Last verified:** 2026-07-19
 > **Companion docs:** [`ARCHITECTURE.md`](ARCHITECTURE.md) · [`CAPABILITY_ROADMAP.md`](CAPABILITY_ROADMAP.md)
 
 Maintenance recipes and the invariants that must not break. When code and
@@ -359,7 +359,7 @@ change and say so in the changelog. Workspace consumers use `path:`
 dependencies, so breaks surface at their next analyze. After any signature
 change: run the check sequence here, then
 `fvm flutter analyze` in each consuming app (the workspace grep for
-`adaptive_layouts` finds them). Update the example's usage in the same
+`morph_kit` finds them). Update the example's usage in the same
 session — it is the reference consumers copy from.
 
 ---

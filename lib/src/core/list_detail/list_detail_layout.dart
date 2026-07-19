@@ -2,22 +2,22 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import 'package:adaptive_layouts/src/core/list_detail/compact_config.dart';
-import 'package:adaptive_layouts/src/core/list_detail/compact_detail_overlay.dart';
-import 'package:adaptive_layouts/src/core/list_detail/detail_layout_mode.dart';
-import 'package:adaptive_layouts/src/core/list_detail/detail_page_route.dart';
-import 'package:adaptive_layouts/src/core/list_detail/expanded_empty_behavior.dart';
-import 'package:adaptive_layouts/src/core/list_detail/list_detail_controller.dart';
-import 'package:adaptive_layouts/src/core/list_detail/paint_visibility_detector.dart';
-import 'package:adaptive_layouts/src/core/shared/adaptive_layout_config.dart';
-import 'package:adaptive_layouts/src/core/shared/divider_builder.dart';
-import 'package:adaptive_layouts/src/core/shared/expanded_entry_style.dart';
-import 'package:adaptive_layouts/src/core/shared/pane_collapse.dart';
-import 'package:adaptive_layouts/src/core/shared/pane_config.dart';
-import 'package:adaptive_layouts/src/core/shared/pane_divider_region.dart';
-import 'package:adaptive_layouts/src/core/shared/pane_scope.dart';
-import 'package:adaptive_layouts/src/core/shared/pane_width_memory.dart';
-import 'package:adaptive_layouts/src/core/shared/pane_width_model.dart';
+import 'package:morph_kit/src/core/list_detail/compact_config.dart';
+import 'package:morph_kit/src/core/list_detail/compact_detail_overlay.dart';
+import 'package:morph_kit/src/core/list_detail/detail_layout_mode.dart';
+import 'package:morph_kit/src/core/list_detail/detail_page_route.dart';
+import 'package:morph_kit/src/core/list_detail/expanded_empty_behavior.dart';
+import 'package:morph_kit/src/core/list_detail/list_detail_controller.dart';
+import 'package:morph_kit/src/core/list_detail/paint_visibility_detector.dart';
+import 'package:morph_kit/src/core/shared/adaptive_layout_config.dart';
+import 'package:morph_kit/src/core/shared/divider_builder.dart';
+import 'package:morph_kit/src/core/shared/expanded_entry_style.dart';
+import 'package:morph_kit/src/core/shared/pane_collapse.dart';
+import 'package:morph_kit/src/core/shared/pane_config.dart';
+import 'package:morph_kit/src/core/shared/pane_divider_region.dart';
+import 'package:morph_kit/src/core/shared/pane_scope.dart';
+import 'package:morph_kit/src/core/shared/pane_width_memory.dart';
+import 'package:morph_kit/src/core/shared/pane_width_model.dart';
 
 part 'list_detail_layout_builders.dart';
 

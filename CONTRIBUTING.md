@@ -7,8 +7,8 @@ Contributions are welcome.
 ## Setup
 
 ```bash
-git clone https://github.com/whuppi/adaptive_layouts.git
-cd adaptive_layouts
+git clone https://github.com/whuppi/morph_kit.git
+cd morph_kit
 make hooks               # activates commit-msg + pre-commit (run once)
 fvm install              # downloads the SDK version pinned in .fvmrc
 fvm flutter pub get

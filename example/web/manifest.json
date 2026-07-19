@@ -1,6 +1,6 @@
 {
-    "name": "adaptive_layouts_example",
-    "short_name": "adaptive_layouts_example",
+    "name": "morph_kit_example",
+    "short_name": "morph_kit_example",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

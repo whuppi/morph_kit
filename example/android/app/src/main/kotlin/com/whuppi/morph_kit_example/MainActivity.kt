@@ -1,4 +1,4 @@
-package com.whuppi.adaptive_layouts_example
+package com.whuppi.morph_kit_example
 
 import io.flutter.embedding.android.FlutterActivity
 

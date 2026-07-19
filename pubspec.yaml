@@ -1,12 +1,12 @@
-name: adaptive_layouts
+name: morph_kit
 version: 0.0.0
 description: >-
-  Adaptive layout widgets that morph between phone and desktop forms —
-  list-detail, split panes, dialog-to-bottom-sheet modals, and pane
-  state that survives window resizes.
-homepage: https://github.com/whuppi/adaptive_layouts
-repository: https://github.com/whuppi/adaptive_layouts
-issue_tracker: https://github.com/whuppi/adaptive_layouts/issues
+  Adaptive, responsive layouts that morph between phone and desktop forms —
+  list-detail, split view panes, dialog to bottom sheet modals — preserving
+  live widget state across window resizes and breakpoint changes.
+homepage: https://github.com/whuppi/morph_kit
+repository: https://github.com/whuppi/morph_kit
+issue_tracker: https://github.com/whuppi/morph_kit/issues
 
 topics:
   - layout

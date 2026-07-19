@@ -1,4 +1,4 @@
-# adaptive_layouts example
+# morph_kit example
 
 A full app in one file (`lib/main.dart`) — not a toy. It is a small
 project-tracker app that runs the package inside the hardest topology it has

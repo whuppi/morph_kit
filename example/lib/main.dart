@@ -1,4 +1,4 @@
-// adaptive_layouts — full-app example
+// morph_kit — full-app example
 //
 // One file, one real app topology. This is deliberately NOT a toy: it is a
 // small project-tracker app ("tickets / ops / admin") built on the hardest
@@ -30,7 +30,7 @@
 // resize across the breakpoint with widget-state preservation (type a comment
 // draft in a ticket, resize, the draft survives).
 
-import 'package:adaptive_layouts/adaptive_layouts.dart';
+import 'package:morph_kit/morph_kit.dart';
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' hide ModalRoute;
@@ -59,7 +59,7 @@ class _ExampleAppState extends State<ExampleApp> {
       builder: (context, _) => AdaptiveLayoutConfig(
         expandedBreakpoint: PackageSettings.instance.expandedBreakpoint,
         child: MaterialApp.router(
-          title: 'adaptive_layouts example',
+          title: 'morph_kit example',
           debugShowCheckedModeBanner: false,
           theme: ThemeData(
             colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),

@@ -1,11 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import 'package:adaptive_layouts/src/core/shared/expanded_entry_style.dart';
-import 'package:adaptive_layouts/src/core/shared/pane_collapse.dart';
-import 'package:adaptive_layouts/src/core/shared/pane_anchor.dart';
-import 'package:adaptive_layouts/src/core/shared/pane_resize_mode.dart';
-import 'package:adaptive_layouts/src/core/shared/pane_width_memory.dart';
+import 'package:morph_kit/src/core/shared/expanded_entry_style.dart';
+import 'package:morph_kit/src/core/shared/pane_collapse.dart';
+import 'package:morph_kit/src/core/shared/pane_anchor.dart';
+import 'package:morph_kit/src/core/shared/pane_resize_mode.dart';
+import 'package:morph_kit/src/core/shared/pane_width_memory.dart';
 
 /// Expanded-layout pane configuration for `ListDetailLayout`.
 ///

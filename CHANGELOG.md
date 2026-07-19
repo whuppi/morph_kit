@@ -49,8 +49,8 @@ CONTENT RULES (never change)
   • NEVER link a living doc (README, docs/*) from an entry — it rots when
     the doc moves on.
   • Links point only at IMMUTABLE targets — a PR, commit, or issue:
-    ([#N](https://github.com/whuppi/adaptive_layouts/issues/N) reported by
-    [@user](https://github.com/user), [PR #N](https://github.com/whuppi/adaptive_layouts/pull/N)).
+    ([#N](https://github.com/whuppi/morph_kit/issues/N) reported by
+    [@user](https://github.com/user), [PR #N](https://github.com/whuppi/morph_kit/pull/N)).
     Credit the issue + reporter when a reported issue drove the fix; the PR
     (or commit) link alone otherwise.
   • No capability inventories — "what's shipped" lives in README +

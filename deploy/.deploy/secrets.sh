@@ -1,8 +1,8 @@
 #!/bin/bash
 # ============================================================================
-# adaptive_layouts secrets manager
+# morph_kit secrets manager
 #
-# Manages secrets for whuppi/adaptive_layouts ONLY.
+# Manages secrets for whuppi/morph_kit ONLY.
 # Bitwarden Secrets Manager is the source of truth.
 # GitHub Environments are CI-accessible copies.
 #
@@ -16,9 +16,9 @@
 # ============================================================================
 set -e
 
-REPO="whuppi/adaptive_layouts"
+REPO="whuppi/morph_kit"
 BWS="${HOME}/bin/bws --color no"
-BW_PREFIX="adaptive_layouts"
+BW_PREFIX="morph_kit"
 export BWS_SERVER_URL="${BWS_SERVER_URL:-https://vault.bitwarden.eu}"
 
 # ── Auth ─────────────────────────────────────────────────────────────────────
@@ -281,7 +281,7 @@ case "${1:-}" in
     upload) cmd_upload "$2" ;;
     rm)     cmd_rm "$2" ;;
     *)
-        echo "adaptive_layouts secrets manager"
+        echo "morph_kit secrets manager"
         echo ""
         echo "Usage:"
         echo "  ./secrets.sh set   <env>/<KEY> <value>   Store in Bitwarden + GitHub"

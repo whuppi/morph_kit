@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 
-import 'package:adaptive_layouts/src/core/modal/modal_layout_mode.dart';
+import 'package:morph_kit/src/core/modal/modal_layout_mode.dart';
 
 /// The surface visuals of one modal form, resolved from the app theme so
 /// the flight starts and ends looking like the real route chrome.

@@ -1,5 +1,5 @@
-import 'package:adaptive_layouts/adaptive_layouts.dart';
-import 'package:adaptive_layouts/src/core/shared/pane_width_model.dart';
+import 'package:morph_kit/morph_kit.dart';
+import 'package:morph_kit/src/core/shared/pane_width_model.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

@@ -1,6 +1,6 @@
-# adaptive_layouts — Capability Roadmap
+# morph_kit — Capability Roadmap
 
-> **Type:** roadmap · **Scope:** adaptive_layouts · **Last verified:** 2026-07-19
+> **Type:** roadmap · **Scope:** morph_kit · **Last verified:** 2026-07-19
 > **Companion docs:** [`ARCHITECTURE.md`](ARCHITECTURE.md) · [`UPDATING.md`](UPDATING.md)
 
 Every capability the package offers or plans, with status. Nothing ships

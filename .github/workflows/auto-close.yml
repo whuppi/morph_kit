@@ -28,4 +28,4 @@ jobs:
     with:
       # Team slug, not a hardcoded person — membership is managed in the org
       # (the same team CODEOWNERS uses), so a maintainer change never edits this.
-      maintainers-mention: '@whuppi/adaptive_layouts-maintainers'
+      maintainers-mention: '@whuppi/morph_kit-maintainers'

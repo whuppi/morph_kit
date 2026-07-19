@@ -10,15 +10,15 @@ from:
 
 To change content:
   - Workspace-wide: edit AGENTS.template.md, then re-run the stamper.
-  - One repo only:  edit the `repo_data` case for "adaptive_layouts" in stamp-agents.sh,
+  - One repo only:  edit the `repo_data` case for "morph_kit" in stamp-agents.sh,
                     then re-run the stamper.
 Manual edits to this file will be overwritten on the next stamp.
 ============================================================================
 -->
 
-# adaptive_layouts
+# morph_kit
 
-> **Public AI agent contract** for adaptive_layouts — read by Cursor, OpenAI Codex, Aider, Devin, JetBrains Junie, and any AI tool that follows the [agents.md](https://agents.md) convention.
+> **Public AI agent contract** for morph_kit — read by Cursor, OpenAI Codex, Aider, Devin, JetBrains Junie, and any AI tool that follows the [agents.md](https://agents.md) convention.
 >
 > Claude Code reads the deeper workspace config at `whuppi/.claude/rules/` and `whuppi/.claude/memory/` automatically — this AGENTS.md exists for every *other* AI tool.
 >
@@ -28,7 +28,7 @@ Manual edits to this file will be overwritten on the next stamp.
 
 ## What this tool does
 
-**adaptive_layouts** is adaptive layout widgets for Flutter — `ListDetailLayout` (list + selected detail: slide-over with swipe-to-dismiss on phones, covering nav bars via an always-mounted OverlayPortal; side-by-side with a draggable, anchor-snapping divider on wide windows) and `AdaptiveSplit` (two always-present panes). Pane widget instances survive the compact ↔ expanded morph (GlobalKey reparenting), and a paint-visibility probe suppresses the overlay detail of inactive kept-alive tabs. Router-agnostic and state-management-agnostic — a ChangeNotifier controller is the whole integration surface.
+**morph_kit** is adaptive layout widgets for Flutter — `ListDetailLayout` (list + selected detail: slide-over with swipe-to-dismiss on phones, covering nav bars via an always-mounted OverlayPortal; side-by-side with a draggable, anchor-snapping divider on wide windows) and `AdaptiveSplit` (two always-present panes). Pane widget instances survive the compact ↔ expanded morph (GlobalKey reparenting), and a paint-visibility probe suppresses the overlay detail of inactive kept-alive tabs. Router-agnostic and state-management-agnostic — a ChangeNotifier controller is the whole integration surface.
 
 This repo is one tool inside the **whuppi** workspace — a multi-tool monorepo. The workspace ships shared engineering standards, code conventions, brand identity, and build patterns that apply across every tool. They're documented in three layers:
 
