@@ -151,6 +151,11 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
               onHorizontalDragUpdate: (d) =>
                   _handleDividerDragUpdate(d.primaryDelta ?? 0),
               onHorizontalDragEnd: (_) => _handleDividerDragEnd(),
+              // Registered only when enabled: a double-tap recognizer
+              // adds a disambiguation delay to other taps in the zone.
+              onDoubleTap: widget.paneConfig.collapseOnDoubleTap
+                  ? _handleDividerDoubleTap
+                  : null,
               child: SizedBox(
                 width: widget.paneConfig.dividerHitWidth,
                 child: dividerBuilder != null

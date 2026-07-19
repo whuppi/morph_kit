@@ -867,10 +867,14 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
 
   /// Animates the divider to the nearest anchor. No-op without anchors.
   void _settleToNearestAnchor() {
-    final availableWidth = _lastExpandedWidth;
-    final target = _paneWidth.snapTarget(availableWidth);
+    final target = _paneWidth.snapTarget(_lastExpandedWidth);
     if (target == null) return;
+    _animateDividerTo(target);
+  }
 
+  /// Animates the divider to [target] with the settle machinery.
+  void _animateDividerTo(double target) {
+    final availableWidth = _lastExpandedWidth;
     final begin = _paneWidth.width(availableWidth);
     final curve = CurvedAnimation(
       parent: _settleController,
@@ -891,6 +895,31 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
       _settleController.removeListener(tick);
       if (mounted) setState(() {});
     });
+  }
+
+  /// Pre-collapse position as a fraction of the window, so a restore
+  /// after a resize lands proportionally.
+  double? _preCollapseFraction;
+
+  /// Double-tap on the divider: collapse to [PaneConfig.minListWidth],
+  /// or restore the pre-collapse position (default width when none).
+  void _handleDividerDoubleTap() {
+    final availableWidth = _lastExpandedWidth;
+    final current = _paneWidth.width(availableWidth);
+    final collapsed = widget.paneConfig.minListWidth;
+    if (current > collapsed + 0.5) {
+      _preCollapseFraction = current / availableWidth;
+      _animateDividerTo(collapsed);
+    } else {
+      final fraction = _preCollapseFraction;
+      final restore = fraction != null
+          ? fraction * availableWidth
+          : PaneWidthModel(
+              widget.paneConfig,
+              referenceWidth: _referenceWidth,
+            ).width(availableWidth);
+      _animateDividerTo(restore);
+    }
   }
 
   // ===========================================================================

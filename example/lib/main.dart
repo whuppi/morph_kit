@@ -143,6 +143,7 @@ class PackageSettings extends ChangeNotifier {
   PaneWidthMemory widthMemory = PaneWidthMemory.persist;
   ExpandedEmptyBehavior emptyBehavior = ExpandedEmptyBehavior.placeholder;
   bool autoSelectFirst = false;
+  bool collapsiblePanes = false;
   double expandedBreakpoint = 720;
   bool handleBackGesture = true;
   int slideDurationMs = 300;
@@ -164,6 +165,11 @@ class PackageSettings extends ChangeNotifier {
     resizeMode: resizeMode,
     entryStyle: entryStyle,
     widthMemory: widthMemory,
+    // Collapsible: open the clamps so the edge anchors are reachable and
+    // double-tap has a true zero to collapse to.
+    minListWidth: collapsiblePanes ? 0 : 200,
+    maxListRatio: collapsiblePanes ? 1.0 : 0.5,
+    collapseOnDoubleTap: collapsiblePanes,
     anchors: anchorsEnabled ? PaneAnchor.listDetail : const [],
   );
 
@@ -330,6 +336,11 @@ class PackageSettingsPanel extends StatelessWidget {
               label: 'Divider snap anchors',
               value: s.anchorsEnabled,
               onChanged: (v) => s.update((s) => s.anchorsEnabled = v),
+            ),
+            _toggle(
+              label: 'Collapsible panes (double-tap divider)',
+              value: s.collapsiblePanes,
+              onChanged: (v) => s.update((s) => s.collapsiblePanes = v),
             ),
             _choice(
               context: context,

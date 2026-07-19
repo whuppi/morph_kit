@@ -47,6 +47,35 @@ void main() {
       expect(find.text('primary exp'), findsOneWidget);
     });
 
+    testWidgets('double-tap collapses the primary pane and restores it', (
+      tester,
+    ) async {
+      await pumpApp(
+        tester,
+        buildSplit(
+          paneConfig: const PaneConfig(
+            minListWidth: 0,
+            maxListRatio: 1.0,
+            collapseOnDoubleTap: true,
+          ),
+        ),
+        size: expanded,
+      );
+      final before = tester.getRect(find.byKey(const Key('primary'))).width;
+
+      await tester.tapAt(Offset(before, 400));
+      await tester.pump(const Duration(milliseconds: 80));
+      await tester.tapAt(Offset(before, 400));
+      await tester.pumpAndSettle();
+      expect(tester.getRect(find.byKey(const Key('primary'))).width, 0);
+
+      await tester.tapAt(const Offset(5, 400));
+      await tester.pump(const Duration(milliseconds: 80));
+      await tester.tapAt(const Offset(5, 400));
+      await tester.pumpAndSettle();
+      expect(tester.getRect(find.byKey(const Key('primary'))).width, before);
+    });
+
     testWidgets('widthMemory.resetOnReentry forgets the drag on re-entry', (
       tester,
     ) async {

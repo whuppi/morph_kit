@@ -176,6 +176,8 @@ Breakpoint crossings animate the pane re-arrangement in every mode — fold/unfo
 
 Entering expanded, the arriving list is laid out at its final width and slides in clipped — content never reflows mid-entry, the way a desktop sidebar arrives. Prefer the list to lay out live and grow into its pane instead? `PaneConfig(entryStyle: ExpandedEntryStyle.resize)`.
 
+Panes can collapse — Material's pane-expansion anchors at the edges, macOS's split-view collapse. Open the clamps (`minListWidth: 0`, `maxListRatio: 1.0`) with edge anchors and a hard drag settles a pane to nothing; `PaneConfig(collapseOnDoubleTap: true)` adds the macOS gesture — double-tap the divider to collapse, double-tap again to restore the previous position.
+
 The divider remembers. A dragged divider position survives compact spells, window resizes, and rebuilds — `PaneConfig` compares by value, so constructing it inline in `build` never resets the width model. Prefer a fresh divider on every return to the wide layout instead? `PaneConfig(widthMemory: PaneWidthMemory.resetOnReentry)`.
 
 ### Sizing the panes

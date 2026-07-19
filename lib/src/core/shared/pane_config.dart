@@ -33,6 +33,7 @@ class PaneConfig {
     this.settleDuration = const Duration(milliseconds: 220),
     this.settleCurve = Curves.easeOutCubic,
     this.dividerHitWidth = 24,
+    this.collapseOnDoubleTap = false,
   });
 
   /// Default width of the list pane in logical pixels.
@@ -74,6 +75,15 @@ class PaneConfig {
   /// Width of the divider's drag hit zone, centered on the pane border.
   final double dividerHitWidth;
 
+  /// Double-tapping the divider toggles the pane collapsed and back —
+  /// the macOS split-view gesture; Material's equivalent is pane
+  /// expansion anchors at the edges. Collapse animates to
+  /// [minListWidth], so a TRUE collapse needs `minListWidth: 0`
+  /// (drag-to-collapse additionally needs `maxListRatio: 1.0` and edge
+  /// anchors to reach the other side). Restoring returns to the
+  /// pre-collapse position, or [defaultListWidth] when there is none.
+  final bool collapseOnDoubleTap;
+
   /// Sensible defaults for a standard list-detail layout.
   static const standard = PaneConfig();
 
@@ -97,7 +107,8 @@ class PaneConfig {
           other.widthMemory == widthMemory &&
           other.settleDuration == settleDuration &&
           other.settleCurve == settleCurve &&
-          other.dividerHitWidth == dividerHitWidth;
+          other.dividerHitWidth == dividerHitWidth &&
+          other.collapseOnDoubleTap == collapseOnDoubleTap;
 
   @override
   int get hashCode => Object.hash(
@@ -112,5 +123,6 @@ class PaneConfig {
     settleDuration,
     settleCurve,
     dividerHitWidth,
+    collapseOnDoubleTap,
   );
 }
