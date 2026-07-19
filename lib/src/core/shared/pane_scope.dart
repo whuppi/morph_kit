@@ -11,8 +11,11 @@ import 'package:adaptive_layouts/src/core/shared/pane_collapse.dart';
 ///
 /// ```dart
 /// final scope = PaneScope.maybeOf(context);
-/// if (scope?.collapsed == PaneSide.start)
-///   IconButton(icon: const Icon(Icons.menu), onPressed: scope!.restore)
+/// if (scope?.collapsed == PaneSide.start && scope!.collapsedSize == 0)
+///   IconButton(
+///     icon: const Icon(Icons.view_sidebar_outlined),
+///     onPressed: scope.restore,
+///   )
 /// ```
 @immutable
 class PaneScopeData {
@@ -20,6 +23,7 @@ class PaneScopeData {
   const PaneScopeData({
     required this.collapsed,
     required this.isExpanded,
+    required this.collapsedSize,
     required this.collapse,
     required this.restore,
   });
@@ -30,6 +34,13 @@ class PaneScopeData {
 
   /// Whether the layout is currently in its expanded (side-by-side) form.
   final bool isExpanded;
+
+  /// The width a collapsed pane keeps on screen
+  /// (`PaneConfig.collapsedSize`). Zero means fully hidden — the
+  /// surviving pane should offer its own restore affordance (the
+  /// hamburger recipe). Non-zero means a rail is visible and already
+  /// carries the expand control — don't duplicate it.
+  final double collapsedSize;
 
   /// Collapses [PaneSide] programmatically. No-op when the config
   /// disallows it or the layout is compact.
@@ -62,5 +73,6 @@ class PaneScope extends InheritedWidget {
   @override
   bool updateShouldNotify(PaneScope oldWidget) =>
       data.collapsed != oldWidget.data.collapsed ||
-      data.isExpanded != oldWidget.data.isExpanded;
+      data.isExpanded != oldWidget.data.isExpanded ||
+      data.collapsedSize != oldWidget.data.collapsedSize;
 }

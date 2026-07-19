@@ -229,10 +229,15 @@ grabbable (the shipped `HandleDivider` turns into a pull tab), and the
 surviving pane can offer its own affordance by reading `PaneScope`:
 
 ```dart
-// Inside a detail pane — the hamburger recipe:
+// Inside a detail pane — the show-sidebar recipe. Gate on
+// collapsedSize == 0: a visible icon rail already carries the expand
+// control, so only a FULLY hidden pane needs this affordance.
 final scope = PaneScope.maybeOf(context);
-if (scope?.collapsed == PaneSide.start)
-  IconButton(icon: const Icon(Icons.menu), onPressed: scope!.restore)
+if (scope?.collapsed == PaneSide.start && scope!.collapsedSize == 0)
+  IconButton(
+    icon: const Icon(Icons.view_sidebar_outlined),
+    onPressed: scope.restore,
+  )
 ```
 
 `PaneScope` also exposes `collapse(PaneSide)` for app-driven collapse

@@ -2286,10 +2286,9 @@ class CollapsedIconRail extends StatelessWidget {
                     icon: Icon(item.icon, size: 20),
                     tooltip: item.tooltip,
                     color: colorScheme.onSurfaceVariant,
-                    onPressed: () {
-                      scope.restore();
-                      item.onTap();
-                    },
+                    // Navigate without expanding — a rail is a mini
+                    // list (the Discord model). Only the chevron expands.
+                    onPressed: item.onTap,
                   ),
               ],
             ),
@@ -2360,11 +2359,15 @@ class _TicketPaneState extends State<TicketPane> {
                 icon: const Icon(Icons.arrow_back),
                 onPressed: widget.onDismiss,
               )
-            : (paneScope?.collapsed == PaneSide.start
+            // Only when the list is FULLY hidden — a visible icon rail
+            // already carries the expand control; duplicating it here
+            // would be two affordances for one action.
+            : (paneScope?.collapsed == PaneSide.start &&
+                      paneScope!.collapsedSize == 0
                   ? IconButton(
-                      icon: const Icon(Icons.menu),
+                      icon: const Icon(Icons.view_sidebar_outlined),
                       tooltip: 'Show list',
-                      onPressed: paneScope!.restore,
+                      onPressed: paneScope.restore,
                     )
                   : null),
         automaticallyImplyLeading: false,

@@ -133,7 +133,16 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
     } else {
       detailSlot =
           widget.emptyStateBuilder?.call(context) ?? const SizedBox.shrink();
-      if (pane < 1.0) {
+      if (collapsed == PaneSide.end) {
+        // The empty placeholder collapses like content — rail slot or
+        // clip-at-floor, never squished raw into the parked width.
+        detailSlot = _collapsedSlot(
+          pane: detailSlot,
+          paneLayoutWidth: minDetailWidth,
+          railBuilder: widget.collapsedDetailBuilder,
+          alignment: AlignmentDirectional.centerEnd,
+        );
+      } else if (pane < 1.0) {
         // The empty pane rides its crossing animation with the same
         // reveal discipline as content panes: laid at final width,
         // clipped — no re-centering wobble while the slot animates.

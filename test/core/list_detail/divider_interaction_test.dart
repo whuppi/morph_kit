@@ -266,15 +266,20 @@ void main() {
             const CounterPane(label: 'list'),
         detailBuilder: (context, id, mode, onDismiss) =>
             const ColoredBox(key: Key('detail'), color: Color(0xFF333333)),
-        collapsedListBuilder: (context) => ColoredBox(
-          key: const Key('rail'),
-          color: const Color(0xFF444444),
-          child: IconButton(
-            key: const Key('rail-expand'),
-            icon: const Icon(Icons.menu),
-            onPressed: PaneScope.of(context).restore,
-          ),
-        ),
+        collapsedListBuilder: (context) {
+          // The scope tells rail/pane content how collapsed "collapsed"
+          // is — non-zero means this rail is the expand affordance.
+          expect(PaneScope.of(context).collapsedSize, 56);
+          return ColoredBox(
+            key: const Key('rail'),
+            color: const Color(0xFF444444),
+            child: IconButton(
+              key: const Key('rail-expand'),
+              icon: const Icon(Icons.menu),
+              onPressed: PaneScope.of(context).restore,
+            ),
+          );
+        },
       );
     }
 
@@ -314,6 +319,37 @@ void main() {
       // Same live instance — the count survived the round trip.
       expect(find.text('list: 1'), findsOneWidget);
       expect(find.byKey(const Key('rail')), findsNothing);
+    });
+
+    testWidgets('empty placeholder collapses into the rail slot too', (
+      tester,
+    ) async {
+      await pumpApp(
+        tester,
+        ListDetailLayout<String>(
+          paneConfig: const PaneConfig(
+            collapsible: PaneCollapsible.end,
+            collapsedSize: 56,
+          ),
+          listBuilder: (context, selectedId, onSelect) =>
+              const ColoredBox(key: Key('list'), color: Color(0xFF111111)),
+          detailBuilder: (context, id, mode, onDismiss) =>
+              const ColoredBox(color: Color(0xFF333333)),
+          emptyStateBuilder: (_) => const Center(child: Text('pick one')),
+          collapsedDetailBuilder: (context) =>
+              const ColoredBox(key: Key('rail'), color: Color(0xFF444444)),
+        ),
+        size: expanded,
+      );
+
+      // Force-collapse the (empty) detail pane.
+      await tester.dragFrom(const Offset(500, 400), const Offset(600, 0));
+      await tester.pumpAndSettle();
+
+      expect(tester.getSize(find.byKey(const Key('rail'))).width, 56);
+      // The placeholder is parked offstage, not squished on screen.
+      expect(find.text('pick one'), findsNothing);
+      expect(find.text('pick one', skipOffstage: false), findsOneWidget);
     });
   });
 

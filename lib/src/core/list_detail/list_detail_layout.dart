@@ -996,6 +996,7 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
   PaneScopeData _paneScopeData() => PaneScopeData(
     collapsed: _isExpanded ? _paneWidth.collapsed : null,
     isExpanded: _isExpanded,
+    collapsedSize: widget.paneConfig.collapsedSize,
     collapse: _collapsePane,
     restore: _restorePane,
   );

@@ -390,6 +390,7 @@ class _AdaptiveSplitState extends State<AdaptiveSplit>
   PaneScopeData _paneScopeData() => PaneScopeData(
     collapsed: _isExpanded ? _visualCollapsed : null,
     isExpanded: _isExpanded,
+    collapsedSize: widget.paneConfig.collapsedSize,
     collapse: _collapsePane,
     restore: _restorePane,
   );
