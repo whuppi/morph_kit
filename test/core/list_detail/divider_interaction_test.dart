@@ -351,6 +351,42 @@ void main() {
       expect(find.text('pick one'), findsNothing);
       expect(find.text('pick one', skipOffstage: false), findsOneWidget);
     });
+
+    testWidgets('collapsed empty pane survives a resize into compact', (
+      tester,
+    ) async {
+      // Repro: both + 56px rail, collapse the empty detail, shrink the
+      // window. The retreat renders expanded geometry at COMPACT width,
+      // where the ratio ceiling drops below the min floor — the share
+      // strings must not throw on inverted clamp bounds.
+      Widget layout() => ListDetailLayout<String>(
+        paneConfig: const PaneConfig(
+          collapsible: PaneCollapsible.both,
+          collapsedSize: 56,
+        ),
+        listBuilder: (context, selectedId, onSelect) =>
+            const ColoredBox(key: Key('list'), color: Color(0xFF111111)),
+        detailBuilder: (context, id, mode, onDismiss) =>
+            const ColoredBox(color: Color(0xFF333333)),
+        emptyStateBuilder: (_) => const Center(child: Text('pick one')),
+        collapsedDetailBuilder: (context) =>
+            const ColoredBox(key: Key('rail'), color: Color(0xFF444444)),
+      );
+      await pumpApp(tester, layout(), size: expanded);
+
+      await tester.dragFrom(const Offset(500, 400), const Offset(600, 0));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('rail')), findsOneWidget);
+
+      await pumpApp(tester, layout(), size: const Size(390, 800));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(tester.getSize(find.byKey(const Key('list'))).width, 390);
+
+      await pumpApp(tester, layout(), size: expanded);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    });
   });
 
   group('semantics', () {

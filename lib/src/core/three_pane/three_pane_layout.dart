@@ -305,10 +305,12 @@ class _ThreePaneLayoutState extends State<ThreePaneLayout> {
 
     double controlledWidth() => _models[controlled].width(availableWidth);
     String share(double delta) {
-      final clamped = (controlledWidth() + delta).clamp(
-        widget.panes[controlled].minWidth,
-        _maxPaneWidth(),
-      );
+      // Min-wins guard against inverted bounds on narrow windows.
+      final floor = widget.panes[controlled].minWidth;
+      final ceiling = _maxPaneWidth();
+      final clamped = ceiling <= floor
+          ? floor
+          : (controlledWidth() + delta).clamp(floor, ceiling);
       return '${(clamped / availableWidth * 100).round()}%';
     }
 

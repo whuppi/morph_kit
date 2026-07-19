@@ -283,7 +283,13 @@ The machinery in `list_detail_layout.dart` holds:
    set the stack's size) while the pane parks in `Offstage` +
    `TickerMode(false)`, state alive. Both panes carry reparenting
    GlobalKeys, so the wrap/unwrap reparents instead of remounting.
-9. **The divider stays grabbable when parked.** The region's position is
+9. **Never `clamp` pane bounds without the min-wins guard.** Expanded
+   geometry renders at COMPACT widths during the empty-pane retreat, so
+   `availableWidth * maxListRatio` can drop below `minListWidth` —
+   `double.clamp` THROWS on inverted bounds. `PaneWidthModel._clamp`
+   and every `_paneSharePercent` guard with "ceiling <= floor → floor";
+   any new bound computation must too.
+10. **The divider stays grabbable when parked.** The region's position is
    clamped fully on-screen at `collapsedSize`; a collapsed pane must
    always be recoverable by drag alone.
 

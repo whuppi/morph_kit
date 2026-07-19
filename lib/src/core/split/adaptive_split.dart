@@ -467,10 +467,13 @@ class _AdaptiveSplitState extends State<AdaptiveSplit>
   /// [delta], clamped to the pane limits, for the screen-reader value
   /// contract.
   String _paneSharePercent(double width, double delta, double availableWidth) {
-    final clamped = (width + delta).clamp(
-      widget.paneConfig.minListWidth,
-      availableWidth * widget.paneConfig.maxListRatio,
-    );
+    // Min-wins guard: a narrow window can invert the floor/ceiling and
+    // clamp throws on inverted bounds.
+    final floor = widget.paneConfig.minListWidth;
+    final ceiling = availableWidth * widget.paneConfig.maxListRatio;
+    final clamped = ceiling <= floor
+        ? floor
+        : (width + delta).clamp(floor, ceiling);
     final startShare = _primaryAtStart ? clamped : availableWidth - clamped;
     return '${(startShare / availableWidth * 100).round()}%';
   }

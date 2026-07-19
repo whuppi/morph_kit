@@ -389,10 +389,15 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
   /// Formats the start pane's share after [delta], clamped to the pane
   /// limits, for the screen-reader value contract.
   String _paneSharePercent(double width, double delta, double availableWidth) {
-    final clamped = (width + delta).clamp(
-      widget.paneConfig.minListWidth,
-      availableWidth * widget.paneConfig.maxListRatio,
-    );
+    // Same min-wins guard as the width model: a narrow window (the
+    // empty-pane retreat renders expanded geometry at compact width)
+    // can push the ratio ceiling below the floor — clamp throws on
+    // inverted bounds.
+    final floor = widget.paneConfig.minListWidth;
+    final ceiling = availableWidth * widget.paneConfig.maxListRatio;
+    final clamped = ceiling <= floor
+        ? floor
+        : (width + delta).clamp(floor, ceiling);
     return '${(clamped / availableWidth * 100).round()}%';
   }
 
