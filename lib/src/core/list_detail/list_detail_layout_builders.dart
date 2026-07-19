@@ -12,62 +12,226 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
   // EXPANDED LAYOUT
   // ===========================================================================
 
-  /// Expanded: side-by-side panes with draggable divider.
+  /// Expanded: side-by-side panes with draggable divider, rebuilt per
+  /// animation tick without setState listeners.
   Widget buildExpandedLayout(BoxConstraints constraints) {
+    return AnimatedBuilder(
+      animation: Listenable.merge([
+        _expandEntryController,
+        _detailPaneController,
+      ]),
+      builder: (context, _) => _buildExpandedLayoutInner(constraints),
+    );
+  }
+
+  Widget _buildExpandedLayoutInner(BoxConstraints constraints) {
     final availableWidth = constraints.maxWidth;
-    _lastExpandedWidth = availableWidth;
-    final listWidth = _paneWidth.width(availableWidth);
+    // Not during an empty-pane retreat: that build runs at the COMPACT
+    // width and would corrupt the reference the crossing math uses.
+    if (_isExpanded) _lastExpandedWidth = availableWidth;
+    // Both animations scale SLOTS only — the width model is untouched,
+    // so dividers and anchors keep their real geometry when they settle.
+    // Parked panes don't dance: a collapsed START pane pins the entry
+    // (a 56px rail has no slide to perform) and any collapsed pane pins
+    // the detail-pane presence (the rail docks at its final position
+    // from frame one; only the list's slide-in participates).
+    final collapsed = _paneWidth.collapsed;
+    final entry =
+        collapsed != PaneSide.start && _expandEntryController.isAnimating
+        ? widget.compactConfig.curve.transform(_expandEntryController.value)
+        : 1.0;
+    final listOnly =
+        widget.expandedEmptyBehavior == ExpandedEmptyBehavior.listOnly;
+    // Detail-pane presence: 0 = list owns the full width. In listOnly it
+    // tracks the selection; in placeholder behavior it is pinned at 1
+    // except while an empty-pane crossing animation (reveal or retreat)
+    // is in flight.
+    final pane =
+        collapsed == null && (listOnly || _detailPaneController.isAnimating)
+        ? widget.compactConfig.curve.transform(_detailPaneController.value)
+        : 1.0;
+    final finalListWidth = _paneWidth.width(availableWidth);
+    // One formula, three motions: pane=1 → the entry scaling; entry=1 →
+    // the pane reveal; both settled → the plain two-pane split.
+    final listWidth =
+        availableWidth - (availableWidth - finalListWidth * entry) * pane;
 
     final selectedId = _controller.selectedId;
+    final detailId = listOnly ? _visibleDetailId : selectedId;
     final dividerBuilder = widget.dividerBuilder;
+
+    Widget list = _keyedList(selectedId);
+    if (collapsed == PaneSide.start) {
+      list = _collapsedSlot(
+        pane: list,
+        paneLayoutWidth: widget.paneConfig.minListWidth,
+        railBuilder: widget.collapsedListBuilder,
+        alignment: AlignmentDirectional.centerStart,
+      );
+    } else if (entry < 1.0 &&
+        widget.paneConfig.entryStyle == ExpandedEntryStyle.reveal) {
+      // Reveal (default): the arriving list is laid out at its FINAL
+      // width and slides in clipped — its content never reflows during
+      // the entry. The yielding detail resizes live instead: its first
+      // frame is exactly the full-width layout compact just showed, so
+      // there is no jump, and native content panes reflow the same way
+      // under a sliding sidebar. `ExpandedEntryStyle.resize` skips the
+      // wrap: the list lays out at the animated slot width and reflows.
+      list = ClipRect(
+        child: OverflowBox(
+          minWidth: finalListWidth,
+          maxWidth: finalListWidth,
+          alignment: AlignmentDirectional.centerEnd,
+          child: list,
+        ),
+      );
+    }
+
+    // The end pane's floor mirrors the start pane's ceiling.
+    final minDetailWidth =
+        availableWidth * (1 - widget.paneConfig.maxListRatio);
+
+    Widget detailSlot;
+    if (detailId != null) {
+      // While a route (active or exiting) holds the detail key, the
+      // pane leaves its slot empty — exactly one key holder per frame.
+      // The route still covers the screen for that frame, so the empty
+      // slot is never visible.
+      detailSlot = ValueListenableBuilder<bool>(
+        valueListenable: _detailRouted,
+        builder: (context, routed, _) => routed
+            ? const SizedBox.shrink()
+            : KeyedSubtree(
+                key: _detailKey,
+                child: widget.detailBuilder(
+                  context,
+                  detailId,
+                  DetailLayoutMode.sideBySide,
+                  _handleDismiss,
+                ),
+              ),
+      );
+      if (collapsed == PaneSide.end) {
+        detailSlot = _collapsedSlot(
+          pane: detailSlot,
+          paneLayoutWidth: minDetailWidth,
+          railBuilder: widget.collapsedDetailBuilder,
+          alignment: AlignmentDirectional.centerEnd,
+        );
+      } else if (listOnly && pane < 1.0) {
+        // The arriving pane reveals from the end edge laid at its FINAL
+        // width, clipped — same no-reflow discipline as the expand
+        // entry. Start-aligned: a rigid sheet sliding in from the end
+        // shows its leading portion first.
+        detailSlot = ClipRect(
+          child: OverflowBox(
+            minWidth: availableWidth - finalListWidth,
+            maxWidth: availableWidth - finalListWidth,
+            alignment: AlignmentDirectional.centerStart,
+            child: detailSlot,
+          ),
+        );
+      }
+    } else if (listOnly) {
+      // Full-width list; the pane slot is zero-width and empty.
+      detailSlot = const SizedBox.shrink();
+    } else {
+      detailSlot =
+          widget.emptyStateBuilder?.call(context) ?? const SizedBox.shrink();
+      if (collapsed == PaneSide.end) {
+        // The empty placeholder collapses like content — rail slot or
+        // clip-at-floor, never squished raw into the parked width.
+        detailSlot = _collapsedSlot(
+          pane: detailSlot,
+          paneLayoutWidth: minDetailWidth,
+          railBuilder: widget.collapsedDetailBuilder,
+          alignment: AlignmentDirectional.centerEnd,
+        );
+      } else if (pane < 1.0) {
+        // The empty pane rides its crossing animation with the same
+        // reveal discipline as content panes: laid at final width,
+        // clipped — no re-centering wobble while the slot animates.
+        detailSlot = ClipRect(
+          child: OverflowBox(
+            minWidth: availableWidth - finalListWidth,
+            maxWidth: availableWidth - finalListWidth,
+            alignment: AlignmentDirectional.centerStart,
+            child: detailSlot,
+          ),
+        );
+      }
+    }
 
     return Stack(
       children: [
-        Row(
-          children: [
-            SizedBox(
-              width: listWidth,
-              child: widget.listBuilder(context, selectedId, _handleSelect),
-            ),
-            Expanded(
-              child: selectedId != null
-                  ? KeyedSubtree(
-                      key: _detailKey,
-                      child: widget.detailBuilder(
-                        context,
-                        selectedId,
-                        DetailLayoutMode.sideBySide,
-                        _handleDismiss,
-                      ),
-                    )
-                  : widget.emptyStateBuilder?.call(context) ??
-                        const SizedBox.shrink(),
-            ),
-          ],
-        ),
-        // Divider — visual (if builder provided) or invisible drag zone
-        PositionedDirectional(
-          start: listWidth - 12, // 24px hit area centered on the border
-          top: 0,
-          bottom: 0,
-          child: GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onHorizontalDragStart: (_) => _handleDividerDragStart(),
-            onHorizontalDragUpdate: (d) =>
-                _handleDividerDragUpdate(d.primaryDelta ?? 0),
-            onHorizontalDragEnd: (_) => _handleDividerDragEnd(),
-            child: SizedBox(
-              width: 24,
-              child: dividerBuilder != null
-                  ? dividerBuilder(
-                      context,
-                      _isDividerDragging,
-                      _isDividerSettling,
-                    )
-                  : null,
+        if (collapsed == PaneSide.end && entry < 1.0)
+          // The rail docks at the end edge from frame one; the list
+          // slides in beside it. The gap between them is background —
+          // the parked pane doesn't replay a collapse it already did.
+          Row(
+            children: [
+              SizedBox(width: listWidth, child: list),
+              const Expanded(child: SizedBox.shrink()),
+              SizedBox(
+                width: widget.paneConfig.collapsedSize,
+                child: detailSlot,
+              ),
+            ],
+          )
+        else
+          Row(
+            children: [
+              SizedBox(width: listWidth, child: list),
+              Expanded(child: detailSlot),
+            ],
+          ),
+        // Divider — visual (if builder provided) or invisible drag zone.
+        // In listOnly it exists whenever the pane does, riding the
+        // animated seam — appearing only after settle reads as a pop-in.
+        // When a pane is collapsed the divider parks at its edge, clamped
+        // fully on-screen so it stays grabbable.
+        if (!listOnly || detailId != null)
+          PositionedDirectional(
+            // Hit area centered on the pane border — the DOCKED boundary
+            // while a parked detail's crossing slide runs.
+            start:
+                ((collapsed == PaneSide.end && entry < 1.0
+                            ? finalListWidth
+                            : listWidth) -
+                        widget.paneConfig.dividerHitWidth / 2)
+                    .clamp(
+                      0.0,
+                      availableWidth - widget.paneConfig.dividerHitWidth,
+                    ),
+            top: 0,
+            bottom: 0,
+            child: PaneDividerRegion(
+              hitWidth: widget.paneConfig.dividerHitWidth,
+              stateFor: (focused) =>
+                  _dividerState(availableWidth, isFocused: focused),
+              dividerBuilder: dividerBuilder,
+              onDragStart: _handleDividerDragStart,
+              onDragDelta: _handleDividerDragUpdate,
+              onDragEnd: _handleDividerDragEnd,
+              onStep: _handleDividerStep,
+              onToggleCollapse: _handleDividerToggleCollapse,
+              onJumpToMinimum: _handleDividerJumpToMinimum,
+              onJumpToMaximum: _handleDividerJumpToMaximum,
+              onReset: _handleDividerReset,
+              semanticsLabel: widget.paneConfig.dividerSemanticsLabel,
+              semanticsValue: _paneSharePercent(listWidth, 0, availableWidth),
+              semanticsIncreasedValue: _paneSharePercent(
+                listWidth,
+                PaneDividerRegion.keyboardStep,
+                availableWidth,
+              ),
+              semanticsDecreasedValue: _paneSharePercent(
+                listWidth,
+                -PaneDividerRegion.keyboardStep,
+                availableWidth,
+              ),
             ),
           ),
-        ),
       ],
     );
   }
@@ -89,9 +253,15 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
 
     Widget body = Stack(
       children: [
-        // List — always rendered behind detail (visible during swipe peek)
+        // List — always rendered behind detail (visible during swipe peek),
+        // but hidden from assistive tech while covered: a screen reader
+        // must not traverse content under the open detail, exactly as it
+        // wouldn't under a pushed route.
         Positioned.fill(
-          child: widget.listBuilder(context, selectedId, _handleSelect),
+          child: ExcludeSemantics(
+            excluding: showDetail,
+            child: _keyedList(selectedId),
+          ),
         ),
         // Detail — slides over list, stays during dismiss animation
         if (showDetail) Positioned.fill(child: buildSlidingDetail()),
@@ -132,8 +302,14 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
         return ValueListenableBuilder<bool>(
           valueListenable: _paintVisibility.notifier,
           builder: (_, visible, _) {
-            if (!visible) return const SizedBox.shrink();
-            return buildSlidingDetail();
+            if (!visible || _visibleDetailId == null) {
+              return const SizedBox.shrink();
+            }
+            // The overlay covers the whole page — remove everything under
+            // it from the semantics tree, same primitive Drawer and
+            // ModalBarrier use. Guarded above: an ever-present blocker
+            // would silence the page with no detail open.
+            return BlockSemantics(child: buildSlidingDetail());
           },
         );
       },
@@ -151,7 +327,7 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
   Widget buildCompactOverlayList() {
     final selectedId = _controller.selectedId;
 
-    Widget list = widget.listBuilder(context, selectedId, _handleSelect);
+    Widget list = _keyedList(selectedId);
     if (widget.compactConfig.handleBackGesture) {
       list = PopScope(
         canPop: selectedId == null,
@@ -166,8 +342,129 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
   }
 
   // ===========================================================================
-  // SHARED SLIDING DETAIL (used by both compact modes)
+  // COMPACT ROUTE LIST (CompactDetailMode.route)
   // ===========================================================================
+
+  /// Compact layout for route mode: the list alone — the detail lives in a
+  /// real page route above. No [PopScope], no swipe machinery: the route
+  /// owns back and transitions.
+  Widget buildCompactRouteList() {
+    final selectedId = _controller.selectedId;
+    if (_bridgeDetail && !_detailRouted.value && selectedId != null) {
+      // The frame between a resize into compact (or a deep-link mount) and
+      // the push: render the detail inline under its key so the element
+      // stays alive for the handoff. The push claims the key post-frame.
+      final keyed = KeyedSubtree(
+        key: _detailKey,
+        child: widget.detailBuilder(
+          context,
+          selectedId,
+          DetailLayoutMode.stacked,
+          _handleDismiss,
+        ),
+      );
+      if (_bridgeOffstage) {
+        // Discrete crossing: the route's real entrance animates over the
+        // LIST — the bridge only keeps the element alive, invisibly.
+        return Stack(
+          children: [
+            Positioned.fill(child: _keyedList(selectedId)),
+            Offstage(child: keyed),
+          ],
+        );
+      }
+      return keyed;
+    }
+    return _keyedList(selectedId);
+  }
+
+  // ===========================================================================
+  // SHARED SLIDING DETAIL (used by inline and overlay compact modes)
+  // ===========================================================================
+
+  /// A collapsed pane's slot. With a rail builder the rail lays out at
+  /// the REAL slot width while the pane parks offstage, state alive
+  /// (tickers paused) — the app renders a purpose-built icon rail.
+  /// Without one, the pane stays laid out at its floor width — its last
+  /// legal layout — and clips as the slot shrinks: content never
+  /// reflows below the floor the app designed for.
+  Widget _collapsedSlot({
+    required Widget pane,
+    required double paneLayoutWidth,
+    required WidgetBuilder? railBuilder,
+    required AlignmentDirectional alignment,
+  }) {
+    // Mid-crossing the slot is far wider than the parked width — a
+    // 56px-designed rail stretched over it reads broken. Ride the
+    // shrink with real content instead: reflow live down to the floor
+    // width, rigid-and-clipped below it. The rail takes over on arrival.
+    Widget heldAtFloor() => ClipRect(
+      child: LayoutBuilder(
+        builder: (context, slot) {
+          final width = slot.maxWidth < paneLayoutWidth
+              ? paneLayoutWidth
+              : slot.maxWidth;
+          return OverflowBox(
+            minWidth: width,
+            maxWidth: width,
+            alignment: alignment,
+            child: pane,
+          );
+        },
+      ),
+    );
+    if (railBuilder == null) return heldAtFloor();
+    // StackFit.expand — the stack must take the slot's size, not the
+    // offstage child's zero size.
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Offstage(
+          child: TickerMode(
+            enabled: false,
+            child: OverflowBox(
+              minWidth: paneLayoutWidth,
+              maxWidth: paneLayoutWidth,
+              alignment: alignment,
+              child: pane,
+            ),
+          ),
+        ),
+        Builder(builder: railBuilder),
+      ],
+    );
+  }
+
+  /// Formats the start pane's share after [delta], clamped to the pane
+  /// limits, for the screen-reader value contract.
+  String _paneSharePercent(double width, double delta, double availableWidth) {
+    // Same min-wins guard as the width model: a narrow window (the
+    // empty-pane retreat renders expanded geometry at compact width)
+    // can push the ratio ceiling below the floor — clamp throws on
+    // inverted bounds.
+    final floor = widget.paneConfig.minListWidth;
+    final ceiling = availableWidth * widget.paneConfig.maxListRatio;
+    final clamped = ceiling <= floor
+        ? floor
+        : (width + delta).clamp(floor, ceiling);
+    return '${(clamped / availableWidth * 100).round()}%';
+  }
+
+  /// The divider's interaction state for [DividerBuilder]s.
+  DividerState _dividerState(double availableWidth, {bool isFocused = false}) {
+    final collapsed = _paneWidth.collapsed;
+    final width = _paneWidth.width(availableWidth);
+    final max = availableWidth * widget.paneConfig.maxListRatio;
+    return DividerState(
+      isDragging: _isDividerDragging,
+      isSettling: _isDividerSettling,
+      atMinimum:
+          collapsed == null && width <= widget.paneConfig.minListWidth + 0.5,
+      atMaximum: collapsed == null && width >= max - 0.5,
+      collapsed: collapsed,
+      isFocused: isFocused,
+    );
+  }
 
   /// The sliding detail pane with swipe-to-dismiss gesture.
   /// Used by both [buildCompactLayout] (inline) and
@@ -182,17 +479,37 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
       onHorizontalDragEnd: _handleCompactDragEnd,
       child: SlideTransition(
         position: _slideAnimation,
-        child: ColoredBox(
-          color:
-              widget.compactConfig.detailBackground ??
-              Theme.of(context).colorScheme.surface,
-          child: KeyedSubtree(
-            key: _detailKey,
-            child: widget.detailBuilder(
-              context,
-              detailId,
-              DetailLayoutMode.stacked,
-              _handleDismiss,
+        // Route parity for assistive tech and keyboards: the open detail
+        // reads as a route boundary to screen readers, and DismissIntent
+        // (Escape, via WidgetsApp's default shortcuts) dismisses when the
+        // focus sits inside the detail — the same courtesy ModalRoute
+        // extends. Intents bubble from the focused node, so no focus is
+        // stolen on open.
+        child: Semantics(
+          scopesRoute: true,
+          explicitChildNodes: true,
+          child: Actions(
+            actions: {
+              DismissIntent: CallbackAction<DismissIntent>(
+                onInvoke: (_) {
+                  _handleDismiss();
+                  return null;
+                },
+              ),
+            },
+            child: ColoredBox(
+              color:
+                  widget.compactConfig.detailBackground ??
+                  Theme.of(context).colorScheme.surface,
+              child: KeyedSubtree(
+                key: _detailKey,
+                child: widget.detailBuilder(
+                  context,
+                  detailId,
+                  DetailLayoutMode.stacked,
+                  _handleDismiss,
+                ),
+              ),
             ),
           ),
         ),

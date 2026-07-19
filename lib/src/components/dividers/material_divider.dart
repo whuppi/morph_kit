@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:adaptive_layouts/src/core/shared/divider_builder.dart';
+
 /// Material-style pane divider with drag and settle visual feedback.
 ///
 /// Shows a thin vertical line that thickens and changes color when dragged.
@@ -15,13 +17,9 @@ class MaterialDivider {
   static const double lineWidth = 1;
 
   /// Builder that matches the `DividerBuilder` typedef.
-  static Widget builder(
-    BuildContext context,
-    bool isDragging,
-    bool isSettling,
-  ) {
+  static Widget builder(BuildContext context, DividerState state) {
     final colorScheme = Theme.of(context).colorScheme;
-    final isActive = isDragging || isSettling;
+    final isActive = state.isDragging || state.isSettling || state.isFocused;
 
     return Center(
       child: AnimatedContainer(

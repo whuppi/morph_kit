@@ -8,7 +8,7 @@
 //   └── RootShellScreen            persistent status bar ABOVE the router
 //       └── AppShellScreen         domain tabs (bottom nav ↔ rail at 720px)
 //           ├── Work domain        secondary tab bar (Tickets / Directory / Prefs)
-//           │   ├── Tickets        ListDetailRouter → overlay detail + modals
+//           │   ├── Tickets        ListDetailRouter → overlay detail + adaptive modals
 //           │   ├── Directory      ANOTHER nested tab router, 4 segments,
 //           │   │                  each segment its own overlay list-detail
 //           │   └── Prefs          plain settings tab
@@ -19,12 +19,13 @@
 //           └── Admin domain       (Workspace / Integrations / Appearance / Advanced)
 //               └── 4 tabs         each a multi-type list-detail
 //
-// Every list-detail runs CompactDetailMode.overlay, so on phone widths the
+// List-details default to CompactDetailMode.overlay (switchable live from
+// the ⚙ package-settings panel in the status strip), so on phone widths the
 // detail pane covers the tab bars and bottom nav — while inactive domains
 // stay mounted (tab routers keep state), which is exactly the case the
 // package's paint-visibility suppression exists for.
 //
-// Also exercised: deep links straight into modals and details (type a URL on
+// Also exercised: deep links straight into details (type a URL on
 // web), swipe-to-dismiss, back-gesture interception, divider drag, window
 // resize across the breakpoint with widget-state preservation (type a comment
 // draft in a ticket, resize, the draft survives).
@@ -33,7 +34,6 @@ import 'package:adaptive_layouts/adaptive_layouts.dart';
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' hide ModalRoute;
-import 'package:flutter/rendering.dart' show RenderProxyBox;
 import 'package:flutter/scheduler.dart';
 
 part 'main.gr.dart';
@@ -54,19 +54,51 @@ class _ExampleAppState extends State<ExampleApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
-      title: 'adaptive_layouts example',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
-      ),
-      darkTheme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.teal,
-          brightness: Brightness.dark,
+    return ListenableBuilder(
+      listenable: PackageSettings.instance,
+      builder: (context, _) => AdaptiveLayoutConfig(
+        expandedBreakpoint: PackageSettings.instance.expandedBreakpoint,
+        child: MaterialApp.router(
+          title: 'adaptive_layouts example',
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
+          ),
+          darkTheme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: Colors.teal,
+              brightness: Brightness.dark,
+            ),
+          ),
+          routerConfig: _router.config(),
+          // App chrome that must outlive EVERY route lives here, above
+          // the Navigator — a page can never do this: any push (a
+          // route-mode detail, a modal) covers page content. The chrome
+          // level hosts its OWN Overlay: floating pieces up here
+          // (tooltips) can't reach the app's overlay, which lives below,
+          // inside `child`. The strip's actions run through the
+          // navigator's own context, since the builder context sits
+          // above it.
+          builder: (context, child) => Overlay(
+            initialEntries: [
+              OverlayEntry(
+                builder: (context) => Material(
+                  color: Theme.of(context).colorScheme.surface,
+                  child: Column(
+                    children: [
+                      StatusStrip(
+                        navigatorContext: () =>
+                            _router.navigatorKey.currentContext!,
+                      ),
+                      Expanded(child: child!),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
-      routerConfig: _router.config(deepLinkBuilder: handleDeepLink),
     );
   }
 }
@@ -76,14 +108,310 @@ class _ExampleAppState extends State<ExampleApp> {
 //
 // One breakpoint for the whole app: below it the shell uses a bottom nav and
 // detail panes slide over; at or above it the shell uses a rail and panes go
-// side-by-side. Matches the package's default (720).
+// side-by-side. Driven by the package settings panel (⚙ in the status strip)
+// through an app-level AdaptiveLayoutConfig.
 // =============================================================================
 
-const double kExpandedBreakpoint = 720;
-
 extension BreakpointX on BuildContext {
-  bool get isExpanded => MediaQuery.sizeOf(this).width >= kExpandedBreakpoint;
+  bool get isExpanded =>
+      MediaQuery.sizeOf(this).width >=
+      (AdaptiveLayoutConfig.maybeOf(this)?.expandedBreakpoint ??
+          AdaptiveLayoutConfig.defaultExpandedBreakpoint);
   bool get isCompact => !isExpanded;
+}
+
+// =============================================================================
+// PACKAGE SETTINGS
+//
+// Live-tweakable package configuration, so every knob the package offers can
+// be exercised while playing with the app. Opened from the ⚙ in the status
+// strip — as an adaptive modal, so the settings panel itself demos the modal.
+// =============================================================================
+
+enum DividerStyle { handle, line, none }
+
+class PackageSettings extends ChangeNotifier {
+  PackageSettings._();
+  static final PackageSettings instance = PackageSettings._();
+
+  // List-detail
+  CompactDetailMode compactDetailMode = CompactDetailMode.overlay;
+  DividerStyle divider = DividerStyle.handle;
+  PaneResizeMode resizeMode = PaneResizeMode.ratio;
+  bool anchorsEnabled = false;
+  ExpandedEntryStyle entryStyle = ExpandedEntryStyle.reveal;
+  PaneWidthMemory widthMemory = PaneWidthMemory.persist;
+  ExpandedEmptyBehavior emptyBehavior = ExpandedEmptyBehavior.placeholder;
+  PaneCollapsible collapsible = PaneCollapsible.none;
+  bool collapseToIconRail = false;
+  bool autoSelectFirst = false;
+  double expandedBreakpoint = 720;
+  bool handleBackGesture = true;
+  int slideDurationMs = 300;
+
+  // Adaptive modal
+  bool modalMorph = true;
+  int modalMorphDurationMs = 350;
+  bool modalDragHandle = true;
+  bool modalPinnedColor = false;
+  bool modalBarrierDismissible = true;
+
+  DividerBuilder? get dividerBuilder => switch (divider) {
+    DividerStyle.handle => HandleDivider.builder,
+    DividerStyle.line => MaterialDivider.builder,
+    DividerStyle.none => null,
+  };
+
+  PaneConfig get paneConfig => PaneConfig(
+    resizeMode: resizeMode,
+    entryStyle: entryStyle,
+    widthMemory: widthMemory,
+    anchors: anchorsEnabled ? PaneAnchor.listDetail : const [],
+    collapsible: collapsible,
+    collapsedSize: collapseToIconRail ? 56 : 0,
+  );
+
+  CompactConfig get compactConfig => CompactConfig(
+    duration: Duration(milliseconds: slideDurationMs),
+    handleBackGesture: handleBackGesture,
+  );
+
+  ModalConfig get modalConfig => ModalConfig(
+    morph: modalMorph,
+    morphDuration: Duration(milliseconds: modalMorphDurationMs),
+    showDragHandle: modalDragHandle,
+    backgroundColor: modalPinnedColor ? const Color(0xFF223038) : null,
+    barrierDismissible: modalBarrierDismissible,
+  );
+
+  void update(void Function(PackageSettings s) change) {
+    change(this);
+    notifyListeners();
+  }
+}
+
+/// Opens the settings panel — as an adaptive modal, so the panel itself
+/// exercises the modal with whatever modal settings are currently chosen.
+void showPackageSettings(BuildContext context) {
+  showAdaptiveModal<void>(
+    context: context,
+    config: PackageSettings.instance.modalConfig,
+    builder: (context, mode) => SizedBox(
+      width: mode == ModalLayoutMode.dialog ? 460 : double.infinity,
+      child: const PackageSettingsPanel(),
+    ),
+  );
+}
+
+class PackageSettingsPanel extends StatelessWidget {
+  const PackageSettingsPanel({super.key});
+
+  Widget _section(BuildContext context, String title) => Padding(
+    padding: const EdgeInsets.only(top: 16, bottom: 4),
+    child: Text(title, style: Theme.of(context).textTheme.titleSmall),
+  );
+
+  Widget _choice<T>({
+    required BuildContext context,
+    required String label,
+    required List<T> values,
+    required T value,
+    required String Function(T) name,
+    required ValueChanged<T> onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(label, style: Theme.of(context).textTheme.labelMedium),
+          ),
+          SegmentedButton<T>(
+            segments: [
+              for (final v in values)
+                ButtonSegment(value: v, label: Text(name(v))),
+            ],
+            selected: {value},
+            showSelectedIcon: false,
+            onSelectionChanged: (selection) => onChanged(selection.first),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _toggle({
+    required String label,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return SwitchListTile(
+      title: Text(label),
+      value: value,
+      dense: true,
+      contentPadding: EdgeInsets.zero,
+      onChanged: onChanged,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = PackageSettings.instance;
+    return ListenableBuilder(
+      listenable: s,
+      builder: (context, _) => SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Package settings',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Everything applies live — resize, select, and dismiss while '
+              'flipping these. This panel is itself an adaptive modal. '
+              'Options appear only when the current choices use them.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            _section(context, 'Layout'),
+            _choice(
+              context: context,
+              label: 'Expanded breakpoint',
+              values: const [600.0, 720.0, 840.0],
+              value: s.expandedBreakpoint,
+              name: (double v) => v.toInt().toString(),
+              onChanged: (v) => s.update((s) => s.expandedBreakpoint = v),
+            ),
+            _section(context, 'Compact detail'),
+            _choice(
+              context: context,
+              label: 'Mode',
+              values: CompactDetailMode.values,
+              value: s.compactDetailMode,
+              name: (CompactDetailMode v) => v.name,
+              onChanged: (v) => s.update((s) => s.compactDetailMode = v),
+            ),
+            // Route mode delegates back handling and transitions to the
+            // real route — these two only exist for the slide-over modes.
+            if (s.compactDetailMode != CompactDetailMode.route) ...[
+              _toggle(
+                label: 'Intercept back gesture',
+                value: s.handleBackGesture,
+                onChanged: (v) => s.update((s) => s.handleBackGesture = v),
+              ),
+              _choice(
+                context: context,
+                label: 'Slide duration (ms)',
+                values: const [200, 300, 500],
+                value: s.slideDurationMs,
+                name: (int v) => '$v',
+                onChanged: (v) => s.update((s) => s.slideDurationMs = v),
+              ),
+            ],
+            _section(context, 'Expanded panes'),
+            _choice(
+              context: context,
+              label: 'Divider',
+              values: DividerStyle.values,
+              value: s.divider,
+              name: (DividerStyle v) => v.name,
+              onChanged: (v) => s.update((s) => s.divider = v),
+            ),
+            _choice(
+              context: context,
+              label: 'Resize mode',
+              values: PaneResizeMode.values,
+              value: s.resizeMode,
+              name: (PaneResizeMode v) => v.name,
+              onChanged: (v) => s.update((s) => s.resizeMode = v),
+            ),
+            _toggle(
+              label: 'Divider snap anchors',
+              value: s.anchorsEnabled,
+              onChanged: (v) => s.update((s) => s.anchorsEnabled = v),
+            ),
+            _choice(
+              context: context,
+              label: 'Expand-entry list style',
+              values: ExpandedEntryStyle.values,
+              value: s.entryStyle,
+              name: (ExpandedEntryStyle v) => v.name,
+              onChanged: (v) => s.update((s) => s.entryStyle = v),
+            ),
+            _choice(
+              context: context,
+              label: 'Divider width memory',
+              values: PaneWidthMemory.values,
+              value: s.widthMemory,
+              name: (PaneWidthMemory v) => v.name,
+              onChanged: (v) => s.update((s) => s.widthMemory = v),
+            ),
+            _choice(
+              context: context,
+              label: 'Empty detail slot',
+              values: ExpandedEmptyBehavior.values,
+              value: s.emptyBehavior,
+              name: (ExpandedEmptyBehavior v) => v.name,
+              onChanged: (v) => s.update((s) => s.emptyBehavior = v),
+            ),
+            _choice(
+              context: context,
+              label: 'Collapsible panes (drag past the limit)',
+              values: PaneCollapsible.values,
+              value: s.collapsible,
+              name: (PaneCollapsible v) => v.name,
+              onChanged: (v) => s.update((s) => s.collapsible = v),
+            ),
+            _toggle(
+              label: 'Collapse to 56px icon rail (vs fully hidden)',
+              value: s.collapseToIconRail,
+              onChanged: (v) => s.update((s) => s.collapseToIconRail = v),
+            ),
+            _toggle(
+              label: 'Auto-select first item (app-side recipe)',
+              value: s.autoSelectFirst,
+              onChanged: (v) => s.update((s) => s.autoSelectFirst = v),
+            ),
+            _section(context, 'Adaptive modal'),
+            _toggle(
+              label: 'Container-transform morph',
+              value: s.modalMorph,
+              onChanged: (v) => s.update((s) => s.modalMorph = v),
+            ),
+            if (s.modalMorph)
+              _choice(
+                context: context,
+                label: 'Morph duration (ms)',
+                values: const [350, 700, 1400],
+                value: s.modalMorphDurationMs,
+                name: (int v) => '$v',
+                onChanged: (v) => s.update((s) => s.modalMorphDurationMs = v),
+              ),
+            _toggle(
+              label: 'Sheet drag handle',
+              value: s.modalDragHandle,
+              onChanged: (v) => s.update((s) => s.modalDragHandle = v),
+            ),
+            _toggle(
+              label: 'Pin one surface color across forms',
+              value: s.modalPinnedColor,
+              onChanged: (v) => s.update((s) => s.modalPinnedColor = v),
+            ),
+            _toggle(
+              label: 'Barrier dismissible',
+              value: s.modalBarrierDismissible,
+              onChanged: (v) => s.update((s) => s.modalBarrierDismissible = v),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 // =============================================================================
@@ -393,8 +721,6 @@ abstract final class Paths {
   static const work = 'work';
   static const tickets = 'tickets';
   static const ticketWithParam = ':${Params.ticketId}';
-  static const newTicketPath = 'work/tickets/new';
-  static const ticketOptionsPath = 'work/tickets/:${Params.ticketId}/options';
   static const directory = 'directory';
   static const prefs = 'prefs';
   static const people = 'people';
@@ -468,8 +794,6 @@ abstract final class Params {
 // Route structure:
 // ```
 // /
-// ├── /work/tickets/new                (modal — handled by deepLinkBuilder)
-// ├── /work/tickets/:ticketId/options  (modal — handled by deepLinkBuilder)
 // └── (app shell)
 //     ├── /work
 //     │   ├── /tickets/:ticketId
@@ -508,17 +832,6 @@ class AppRouter extends RootStackRouter {
       page: RootShellRoute.page,
       path: Paths.root,
       children: [
-        // Modals — registered at root level so the paths resolve; the
-        // deepLinkBuilder builds the stack (content + modal) for cold links.
-        AdaptiveModalRoute(
-          page: NewTicketRoute.page,
-          path: Paths.newTicketPath,
-        ),
-        AdaptiveModalRoute(
-          page: TicketOptionsRoute.page,
-          path: Paths.ticketOptionsPath,
-        ),
-
         // App shell — domain navigation (bottom nav / rail).
         AutoRoute(
           page: AppShellRoute.page,
@@ -717,370 +1030,6 @@ class AppRouter extends RootStackRouter {
 }
 
 // =============================================================================
-// DEEP LINK HANDLER
-//
-// A deep link straight to a modal (like /work/tickets/new) must build the
-// FULL route stack so the app content renders behind the modal. Without this,
-// a cold link shows only the modal with nothing behind it.
-// =============================================================================
-
-DeepLink handleDeepLink(PlatformDeepLink deepLink) {
-  final path = deepLink.path;
-
-  for (final modal in _modalDeepLinks) {
-    final match = modal.matches(path);
-    if (match != null) {
-      return DeepLink([modal.buildNestedRoute(match)]);
-    }
-  }
-
-  return deepLink;
-}
-
-abstract class _ModalDeepLink {
-  Map<String, String>? matches(String path);
-  PageRouteInfo buildNestedRoute(Map<String, String> params);
-}
-
-class _StaticModalDeepLink extends _ModalDeepLink {
-  final String path;
-  final PageRouteInfo Function() _build;
-
-  _StaticModalDeepLink({
-    required this.path,
-    required PageRouteInfo Function() build,
-  }) : _build = build;
-
-  @override
-  Map<String, String>? matches(String inputPath) =>
-      inputPath == path ? {} : null;
-
-  @override
-  PageRouteInfo buildNestedRoute(Map<String, String> params) => _build();
-}
-
-class _DynamicModalDeepLink extends _ModalDeepLink {
-  final RegExp pattern;
-  final List<String> paramNames;
-  final PageRouteInfo Function(Map<String, String> params) _build;
-
-  _DynamicModalDeepLink({
-    required this.pattern,
-    required this.paramNames,
-    required PageRouteInfo Function(Map<String, String> params) build,
-  }) : _build = build;
-
-  @override
-  Map<String, String>? matches(String path) {
-    final match = pattern.firstMatch(path);
-    if (match == null) return null;
-    final params = <String, String>{};
-    for (var i = 0; i < paramNames.length; i++) {
-      params[paramNames[i]] = match.group(i + 1)!;
-    }
-    return params;
-  }
-
-  @override
-  PageRouteInfo buildNestedRoute(Map<String, String> params) => _build(params);
-}
-
-final _modalDeepLinks = <_ModalDeepLink>[
-  // New ticket modal: /work/tickets/new — tickets list behind, modal on top.
-  _StaticModalDeepLink(
-    path: '/work/tickets/new',
-    build: () => RootShellRoute(
-      children: [
-        AppShellRoute(
-          children: [
-            WorkDomainRoute(children: [TicketsTabRoute()]),
-          ],
-        ),
-        NewTicketRoute(),
-      ],
-    ),
-  ),
-
-  // Ticket options modal: /work/tickets/:ticketId/options — ticket selected
-  // behind the modal.
-  _DynamicModalDeepLink(
-    pattern: RegExp(r'^/work/tickets/([^/]+)/options$'),
-    paramNames: [Params.ticketId],
-    build: (params) {
-      final ticketId = params[Params.ticketId]!;
-      return RootShellRoute(
-        children: [
-          AppShellRoute(
-            children: [
-              WorkDomainRoute(
-                children: [
-                  TicketsTabRoute(children: [TicketRoute(id: ticketId)]),
-                ],
-              ),
-            ],
-          ),
-          TicketOptionsRoute(ticketId: ticketId),
-        ],
-      );
-    },
-  ),
-];
-
-// =============================================================================
-// ADAPTIVE MODAL ROUTE
-//
-// Dialog on expanded widths, bottom sheet on compact — and it live-transforms
-// between the two when the window resizes across the breakpoint, preserving
-// the content widget's state.
-// =============================================================================
-
-class AdaptiveModalRoute extends CustomRoute {
-  AdaptiveModalRoute({required super.page, super.path})
-    : super(customRouteBuilder: _adaptiveBuilder, fullscreenDialog: true);
-
-  static Route<T> _adaptiveBuilder<T>(
-    BuildContext context,
-    Widget child,
-    AutoRoutePage<T> page,
-  ) {
-    return _AdaptiveModalPageRoute<T>(settings: page, child: child);
-  }
-}
-
-class _AdaptiveModalPageRoute<T> extends PopupRoute<T> {
-  _AdaptiveModalPageRoute({
-    required this.child,
-    required RouteSettings settings,
-  }) : super(settings: settings);
-
-  final Widget child;
-
-  @override
-  Color? get barrierColor => Colors.black54;
-
-  @override
-  String? get barrierLabel => 'Dismiss';
-
-  @override
-  bool get barrierDismissible => true;
-
-  @override
-  Duration get transitionDuration => const Duration(milliseconds: 300);
-
-  @override
-  Duration get reverseTransitionDuration => const Duration(milliseconds: 250);
-
-  @override
-  Widget buildPage(
-    BuildContext context,
-    Animation<double> animation,
-    Animation<double> secondaryAnimation,
-  ) {
-    return _AdaptiveModalPage<T>(route: this, child: child);
-  }
-}
-
-class _AdaptiveModalPage<T> extends StatefulWidget {
-  final _AdaptiveModalPageRoute<T> route;
-  final Widget child;
-
-  const _AdaptiveModalPage({required this.route, required this.child});
-
-  @override
-  State<_AdaptiveModalPage<T>> createState() => _AdaptiveModalPageState<T>();
-}
-
-class _AdaptiveModalPageState<T> extends State<_AdaptiveModalPage<T>>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _dragController;
-  double _sheetHeight = 400;
-
-  @override
-  void initState() {
-    super.initState();
-    _dragController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 250),
-      value: 0,
-    );
-  }
-
-  @override
-  void dispose() {
-    _dragController.dispose();
-    super.dispose();
-  }
-
-  void _onDragStart(DragStartDetails details) => _dragController.stop();
-
-  void _onDragUpdate(DragUpdateDetails details) {
-    if (_sheetHeight <= 0) return;
-    final delta = details.primaryDelta ?? 0;
-    _dragController.value = (_dragController.value + delta / _sheetHeight)
-        .clamp(0.0, 1.0);
-  }
-
-  void _onDragEnd(DragEndDetails details) {
-    final velocity = details.primaryVelocity ?? 0;
-    if (velocity > 300 || _dragController.value > 0.4) {
-      _dragController.forward().then((_) {
-        if (mounted) Navigator.of(context).pop();
-      });
-    } else {
-      _dragController.reverse();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final animation = widget.route.animation!;
-    return context.isExpanded
-        ? _buildDialog(context, animation)
-        : _buildBottomSheet(context, animation);
-  }
-
-  Widget _buildDialog(BuildContext context, Animation<double> animation) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final curved = CurvedAnimation(
-      parent: animation,
-      curve: Curves.easeOutCubic,
-      reverseCurve: Curves.easeInCubic,
-    );
-
-    return SafeArea(
-      child: Center(
-        child: FadeTransition(
-          opacity: curved,
-          child: ScaleTransition(
-            scale: Tween<double>(begin: 0.9, end: 1.0).animate(curved),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: 560,
-                maxHeight: MediaQuery.sizeOf(context).height * 0.85,
-              ),
-              child: Material(
-                color: colorScheme.surfaceContainerHigh,
-                borderRadius: BorderRadius.circular(28),
-                clipBehavior: Clip.antiAlias,
-                elevation: 6,
-                child: widget.child,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomSheet(BuildContext context, Animation<double> animation) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final bottomPadding = MediaQuery.viewInsetsOf(context).bottom;
-    final screenHeight = MediaQuery.sizeOf(context).height;
-    final slide = CurvedAnimation(
-      parent: animation,
-      curve: Curves.easeOutCubic,
-      reverseCurve: Curves.easeInCubic,
-    );
-
-    return AnimatedBuilder(
-      animation: Listenable.merge([slide, _dragController]),
-      builder: (context, child) {
-        final totalOffset =
-            (1 - slide.value) + (slide.value * _dragController.value);
-
-        return Align(
-          alignment: Alignment.bottomCenter,
-          child: Transform.translate(
-            offset: Offset(0, totalOffset * _sheetHeight),
-            child: Padding(
-              padding: EdgeInsets.only(bottom: bottomPadding),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: screenHeight * 0.9),
-                child: _SheetHeightReporter(
-                  onHeightChanged: (h) => _sheetHeight = h,
-                  child: Material(
-                    color: colorScheme.surfaceContainerHigh,
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(28),
-                    ),
-                    clipBehavior: Clip.antiAlias,
-                    elevation: 8,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        GestureDetector(
-                          onVerticalDragStart: _onDragStart,
-                          onVerticalDragUpdate: _onDragUpdate,
-                          onVerticalDragEnd: _onDragEnd,
-                          behavior: HitTestBehavior.opaque,
-                          child: Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            child: Center(
-                              child: Container(
-                                width: 32,
-                                height: 4,
-                                decoration: BoxDecoration(
-                                  color: colorScheme.onSurfaceVariant
-                                      .withValues(alpha: 0.4),
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        Flexible(child: widget.child),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _SheetHeightReporter extends SingleChildRenderObjectWidget {
-  final ValueChanged<double> onHeightChanged;
-
-  const _SheetHeightReporter({
-    required this.onHeightChanged,
-    required Widget child,
-  }) : super(child: child);
-
-  @override
-  RenderObject createRenderObject(BuildContext context) =>
-      _RenderSheetHeightReporter(onHeightChanged);
-
-  @override
-  void updateRenderObject(
-    BuildContext context,
-    _RenderSheetHeightReporter renderObject,
-  ) {
-    renderObject.onHeightChanged = onHeightChanged;
-  }
-}
-
-class _RenderSheetHeightReporter extends RenderProxyBox {
-  ValueChanged<double> onHeightChanged;
-
-  _RenderSheetHeightReporter(this.onHeightChanged);
-
-  @override
-  void performLayout() {
-    super.performLayout();
-    if (hasSize && size.height > 0) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        onHeightChanged(size.height);
-      });
-    }
-  }
-}
-
-// =============================================================================
 // TAB ROUTERS
 //
 // Secondary tab bar over an AutoTabsRouter. Inactive tabs stay mounted (state
@@ -1152,7 +1101,7 @@ Widget domainTab({required IconData icon, required String label}) {
 //
 // The bridge between ListDetailLayout and auto_route: URL → controller on
 // deep links / back-forward, controller → URL on select / dismiss. Both run
-// the package in CompactDetailMode.overlay.
+// the package in whichever CompactDetailMode the ⚙ settings panel selects.
 // =============================================================================
 
 /// Single entity type per tab (tickets, people, builds...).
@@ -1162,13 +1111,17 @@ class ListDetailRouter extends StatefulWidget {
   final ListPaneBuilder<String> listBuilder;
   final DetailPaneBuilder<String> detailBuilder;
   final WidgetBuilder? emptyStateBuilder;
-  final DividerBuilder? dividerBuilder;
-  final double? expandedBreakpoint;
-  final PaneConfig paneConfig;
-  final CompactConfig compactConfig;
+  final WidgetBuilder? collapsedListBuilder;
+  final WidgetBuilder? collapsedDetailBuilder;
 
   /// When provided, auto-clears selection if the entity no longer exists.
   final bool Function(String id)? selectedIdExists;
+
+  /// First item for the auto-select school (the ⚙ toggle): when set and
+  /// the toggle is on, an empty expanded layout selects this item — the
+  /// Notes/Slack pattern, implemented app-side with the controller.
+  /// Returns null when the list is empty (nothing to select).
+  final String? Function()? firstItemId;
 
   const ListDetailRouter({
     super.key,
@@ -1177,11 +1130,10 @@ class ListDetailRouter extends StatefulWidget {
     required this.listBuilder,
     required this.detailBuilder,
     this.emptyStateBuilder,
-    this.dividerBuilder,
-    this.expandedBreakpoint,
-    this.paneConfig = const PaneConfig(),
-    this.compactConfig = const CompactConfig(),
+    this.collapsedListBuilder,
+    this.collapsedDetailBuilder,
     this.selectedIdExists,
+    this.firstItemId,
   });
 
   @override
@@ -1305,17 +1257,47 @@ class _ListDetailRouterState extends State<ListDetailRouter> {
 
   @override
   Widget build(BuildContext context) {
-    return ListDetailLayout<String>(
-      controller: _controller,
-      listBuilder: widget.listBuilder,
-      detailBuilder: widget.detailBuilder,
-      emptyStateBuilder: widget.emptyStateBuilder,
-      dividerBuilder: widget.dividerBuilder,
-      expandedBreakpoint: widget.expandedBreakpoint,
-      paneConfig: widget.paneConfig,
-      compactConfig: widget.compactConfig,
-      compactDetailMode: CompactDetailMode.overlay,
+    // Layout configuration comes from the live package settings (⚙ in the
+    // status strip). The ListenableBuilder is load-bearing: routed page
+    // subtrees don't rebuild from app-level rebuilds, so each layout
+    // listens to the settings itself.
+    return ListenableBuilder(
+      listenable: PackageSettings.instance,
+      builder: (context, _) {
+        final settings = PackageSettings.instance;
+        _maybeAutoSelectFirst(context, settings);
+        return ListDetailLayout<String>(
+          controller: _controller,
+          listBuilder: widget.listBuilder,
+          detailBuilder: widget.detailBuilder,
+          emptyStateBuilder: widget.emptyStateBuilder,
+          collapsedListBuilder: widget.collapsedListBuilder,
+          collapsedDetailBuilder: widget.collapsedDetailBuilder,
+          dividerBuilder: settings.dividerBuilder,
+          paneConfig: settings.paneConfig,
+          compactConfig: settings.compactConfig,
+          compactDetailMode: settings.compactDetailMode,
+          expandedEmptyBehavior: settings.emptyBehavior,
+        );
+      },
     );
+  }
+
+  /// The auto-select school, app-side: when the expanded layout would
+  /// show an empty slot, select the first item instead (Notes, Slack).
+  /// Deliberately reselects after dismiss too — that IS the pattern:
+  /// these apps never show emptiness at a wide window.
+  void _maybeAutoSelectFirst(BuildContext context, PackageSettings settings) {
+    if (!settings.autoSelectFirst || widget.firstItemId == null) return;
+    if (_controller.hasSelection) return;
+    final width = MediaQuery.sizeOf(context).width;
+    if (width < AdaptiveLayoutConfig.resolveBreakpoint(context, null)) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _controller.hasSelection) return;
+      if (!PackageSettings.instance.autoSelectFirst) return;
+      final id = widget.firstItemId!();
+      if (id != null) _controller.select(id);
+    });
   }
 }
 
@@ -1365,20 +1347,12 @@ class MultiTypeListDetailRouter extends StatefulWidget {
   final Map<String, ListDetailRouteType> types;
   final MultiTypeListBuilder listBuilder;
   final WidgetBuilder? emptyStateBuilder;
-  final DividerBuilder? dividerBuilder;
-  final double? expandedBreakpoint;
-  final PaneConfig paneConfig;
-  final CompactConfig compactConfig;
 
   const MultiTypeListDetailRouter({
     super.key,
     required this.types,
     required this.listBuilder,
     this.emptyStateBuilder,
-    this.dividerBuilder,
-    this.expandedBreakpoint,
-    this.paneConfig = const PaneConfig(),
-    this.compactConfig = const CompactConfig(),
   });
 
   @override
@@ -1555,23 +1529,28 @@ class _MultiTypeListDetailRouterState extends State<MultiTypeListDetailRouter> {
         ? widget.types[_selection.activeType]
         : null;
 
-    return ListDetailLayout<String>(
-      controller: _controller,
-      listBuilder: (context, selectedId, onSelect) {
-        return widget.listBuilder(context, _selection, _onListSelect);
+    return ListenableBuilder(
+      listenable: PackageSettings.instance,
+      builder: (context, _) {
+        final settings = PackageSettings.instance;
+        return ListDetailLayout<String>(
+          controller: _controller,
+          listBuilder: (context, selectedId, onSelect) {
+            return widget.listBuilder(context, _selection, _onListSelect);
+          },
+          detailBuilder: (context, id, mode, onDismiss) {
+            if (activeConfig != null) {
+              return activeConfig.detailBuilder(context, id, mode, onDismiss);
+            }
+            return const SizedBox.shrink();
+          },
+          emptyStateBuilder: widget.emptyStateBuilder,
+          dividerBuilder: settings.dividerBuilder,
+          paneConfig: settings.paneConfig,
+          compactConfig: settings.compactConfig,
+          compactDetailMode: settings.compactDetailMode,
+        );
       },
-      detailBuilder: (context, id, mode, onDismiss) {
-        if (activeConfig != null) {
-          return activeConfig.detailBuilder(context, id, mode, onDismiss);
-        }
-        return const SizedBox.shrink();
-      },
-      emptyStateBuilder: widget.emptyStateBuilder,
-      dividerBuilder: widget.dividerBuilder,
-      expandedBreakpoint: widget.expandedBreakpoint,
-      paneConfig: widget.paneConfig,
-      compactConfig: widget.compactConfig,
-      compactDetailMode: CompactDetailMode.overlay,
     );
   }
 }
@@ -1580,34 +1559,29 @@ class _MultiTypeListDetailRouterState extends State<MultiTypeListDetailRouter> {
 // SHELLS
 // =============================================================================
 
-/// Root shell — a persistent zone that sits ABOVE the router, so route swaps
-/// and overlay details never cover or remount it.
+/// Root shell — the top page of the root stack. The persistent strip is
+/// NOT here: a page can be covered by anything pushed above it, so the
+/// strip lives in `MaterialApp.builder`, above the Navigator itself.
 @RoutePage()
 class RootShellScreen extends StatelessWidget {
   const RootShellScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Material(
-      color: colorScheme.surface,
-      child: const Column(
-        children: [
-          StatusStrip(),
-          Expanded(child: AutoRouter()),
-        ],
-      ),
-    );
+    return const AutoRouter();
   }
 }
 
 /// The persistent strip: shows the active deploy when one is running.
-/// Rendered outside the nested router, so overlay-mode details (which live in
-/// the nested Navigator's overlay) slide UNDER it — that layering is part of
-/// the contract being demonstrated.
+/// Mounted in `MaterialApp.builder` — above the app's Navigator — so no
+/// route, detail page, or modal can ever cover it.
 class StatusStrip extends StatelessWidget {
-  const StatusStrip({super.key});
+  const StatusStrip({super.key, required this.navigatorContext});
+
+  /// The navigator's context, for actions that present routes (the ⚙
+  /// settings modal): the strip's own context sits ABOVE the Navigator
+  /// and cannot push into it.
+  final BuildContext Function() navigatorContext;
 
   @override
   Widget build(BuildContext context) {
@@ -1648,6 +1622,12 @@ class StatusStrip extends StatelessWidget {
                       visualDensity: VisualDensity.compact,
                       onPressed: () => Store.instance.deploying.value = null,
                     ),
+                  IconButton(
+                    icon: const Icon(Icons.tune, size: 16),
+                    visualDensity: VisualDensity.compact,
+                    tooltip: 'Package settings',
+                    onPressed: () => showPackageSettings(navigatorContext()),
+                  ),
                   const SizedBox(width: 4),
                 ],
               ),
@@ -1835,6 +1815,9 @@ class DemoListPane extends StatelessWidget {
           ),
           floatingActionButton: !isExpandedLayout && onNew != null
               ? FloatingActionButton(
+                  // Several list panels coexist in kept-alive tabs; default
+                  // FAB hero tags collide the moment any route pushes.
+                  heroTag: null,
                   onPressed: onNew,
                   child: const Icon(Icons.add),
                 )
@@ -2205,19 +2188,26 @@ class TicketsTabScreen extends StatelessWidget {
       builder: (context, tickets, _) {
         return ListDetailRouter(
           idParamName: Params.ticketId,
-          paneConfig: const PaneConfig(
-            defaultListWidth: 300,
-            minListWidth: 240,
-            maxListRatio: 0.4,
-          ),
-          dividerBuilder: HandleDivider.builder,
           selectedIdExists: (id) => tickets.any((t) => t.id == id),
+          firstItemId: () => tickets.isEmpty ? null : tickets.first.id,
           listBuilder: (context, selectedId, onSelect) => DemoListPane(
             collection: store.tickets,
             selectedId: selectedId,
             onSelect: onSelect,
             newLabel: 'New ticket',
-            onNew: () => context.router.push(const NewTicketRoute()),
+            onNew: () async {
+              final id = await showAdaptiveModal<String>(
+                context: context,
+                config: PackageSettings.instance.modalConfig,
+                builder: (context, mode) => SizedBox(
+                  width: mode == ModalLayoutMode.dialog ? 420 : double.infinity,
+                  child: const NewTicketScreen(),
+                ),
+              );
+              if (id != null && context.mounted) {
+                context.router.navigatePath('/work/tickets/$id');
+              }
+            },
             emptyIcon: Icons.confirmation_number_outlined,
           ),
           detailBuilder: (context, id, mode, onDismiss) =>
@@ -2226,8 +2216,83 @@ class TicketsTabScreen extends StatelessWidget {
             icon: Icons.confirmation_number_outlined,
             message: 'Select a ticket',
           ),
+          // The icon-rail recipe: with "collapse to icon rail" on, a
+          // snapped-shut list renders THIS instead of clipped content —
+          // laid out at the real 56px slot. Tapping an icon restores the
+          // list and selects that ticket.
+          collapsedListBuilder: (context) => CollapsedIconRail(
+            items: [
+              for (final t in tickets)
+                CollapsedRailItem(
+                  icon: t.icon,
+                  tooltip: t.name,
+                  onTap: () =>
+                      context.router.navigatePath('/work/tickets/${t.id}'),
+                ),
+            ],
+          ),
+          collapsedDetailBuilder: (context) => const CollapsedIconRail(),
         );
       },
+    );
+  }
+}
+
+/// A 56px icon rail for a collapsed pane — the VS Code activity-bar
+/// shape. Reads [PaneScope] for the restore action; item taps restore
+/// AND select, so the rail stays a functional mini version of the list.
+class CollapsedRailItem {
+  const CollapsedRailItem({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+}
+
+class CollapsedIconRail extends StatelessWidget {
+  const CollapsedIconRail({super.key, this.items = const []});
+
+  final List<CollapsedRailItem> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final scope = PaneScope.of(context);
+    return Material(
+      color: colorScheme.surfaceContainerLow,
+      child: Column(
+        children: [
+          const SizedBox(height: 8),
+          IconButton(
+            icon: Icon(
+              scope.collapsed == PaneSide.start
+                  ? Icons.keyboard_double_arrow_right
+                  : Icons.keyboard_double_arrow_left,
+            ),
+            tooltip: 'Expand',
+            onPressed: scope.restore,
+          ),
+          const Divider(height: 16, indent: 12, endIndent: 12),
+          Expanded(
+            child: ListView(
+              children: [
+                for (final item in items)
+                  IconButton(
+                    icon: Icon(item.icon, size: 20),
+                    tooltip: item.tooltip,
+                    color: colorScheme.onSurfaceVariant,
+                    // Navigate without expanding — a rail is a mini
+                    // list (the Discord model). Only the chevron expands.
+                    onPressed: item.onTap,
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -2281,6 +2346,10 @@ class _TicketPaneState extends State<TicketPane> {
       widget.ticketId,
     );
 
+    // The hamburger recipe: when the list pane snap-collapses, the
+    // surviving detail pane reads PaneScope and offers a restore button.
+    final paneScope = PaneScope.maybeOf(context);
+
     return Scaffold(
       appBar: AppBar(
         leading: widget.mode == DetailLayoutMode.stacked
@@ -2288,7 +2357,17 @@ class _TicketPaneState extends State<TicketPane> {
                 icon: const Icon(Icons.arrow_back),
                 onPressed: widget.onDismiss,
               )
-            : null,
+            // Only when the list is FULLY hidden — a visible icon rail
+            // already carries the expand control; duplicating it here
+            // would be two affordances for one action.
+            : (paneScope?.collapsed == PaneSide.start &&
+                      paneScope!.collapsedSize == 0
+                  ? IconButton(
+                      icon: const Icon(Icons.view_sidebar_outlined),
+                      tooltip: 'Show list',
+                      onPressed: paneScope.restore,
+                    )
+                  : null),
         automaticallyImplyLeading: false,
         title: Row(
           children: [
@@ -2309,8 +2388,13 @@ class _TicketPaneState extends State<TicketPane> {
           IconButton(
             icon: const Icon(Icons.more_horiz),
             tooltip: 'Ticket options (modal)',
-            onPressed: () => context.router.push(
-              TicketOptionsRoute(ticketId: widget.ticketId),
+            onPressed: () => showAdaptiveModal<void>(
+              context: context,
+              config: PackageSettings.instance.modalConfig,
+              builder: (context, mode) => SizedBox(
+                width: mode == ModalLayoutMode.dialog ? 420 : double.infinity,
+                child: TicketOptionsScreen(ticketId: widget.ticketId),
+              ),
             ),
           ),
           if (widget.mode == DetailLayoutMode.sideBySide)
@@ -2447,7 +2531,6 @@ class WorkPrefsTabScreen extends StatelessWidget {
 
 // ── Work modals ──
 
-@RoutePage()
 class NewTicketScreen extends StatefulWidget {
   const NewTicketScreen({super.key});
 
@@ -2477,9 +2560,9 @@ class _NewTicketScreenState extends State<NewTicketScreen> {
         icon: Icons.fiber_new_outlined,
       ),
     );
-    // Close the modal, then navigate into the new ticket (list-detail URL).
-    Navigator.of(context).pop();
-    context.router.navigatePath('/work/tickets/$id');
+    // Pop with the id as the modal result — the opener navigates. The
+    // result future survives any dialog ↔ sheet swaps in between.
+    Navigator.of(context).pop(id);
   }
 
   @override
@@ -2520,12 +2603,8 @@ class _NewTicketScreenState extends State<NewTicketScreen> {
   }
 }
 
-@RoutePage()
 class TicketOptionsScreen extends StatelessWidget {
-  const TicketOptionsScreen({
-    super.key,
-    @PathParam(Params.ticketId) required this.ticketId,
-  });
+  const TicketOptionsScreen({super.key, required this.ticketId});
 
   final String ticketId;
 
@@ -2650,7 +2729,6 @@ class _DirectorySegment extends StatelessWidget {
       builder: (context, items, _) {
         return ListDetailRouter(
           idParamName: idParamName,
-          dividerBuilder: HandleDivider.builder,
           selectedIdExists: (id) => items.any((i) => i.id == id),
           listBuilder: (context, selectedId, onSelect) => DemoListPane(
             collection: collection,
@@ -2909,7 +2987,6 @@ class BuildsTabScreen extends StatelessWidget {
       builder: (context, builds, _) {
         return ListDetailRouter(
           idParamName: Params.buildId,
-          dividerBuilder: HandleDivider.builder,
           selectedIdExists: (id) => builds.any((b) => b.id == id),
           listBuilder: (context, selectedId, onSelect) => DemoListPane(
             collection: store.builds,
@@ -2984,7 +3061,6 @@ class SetupTabScreen extends StatelessWidget {
       valueListenable: store.pipelines,
       builder: (context, pipelines, _) {
         return MultiTypeListDetailRouter(
-          dividerBuilder: HandleDivider.builder,
           emptyStateBuilder: (_) => const DemoEmptyPane(
             icon: Icons.tune_outlined,
             message: 'Select a setting',
@@ -3126,7 +3202,6 @@ class WorkspaceTabScreen extends StatelessWidget {
     final store = Store.instance;
 
     return MultiTypeListDetailRouter(
-      dividerBuilder: HandleDivider.builder,
       emptyStateBuilder: (_) => const DemoEmptyPane(
         icon: Icons.business_outlined,
         message: 'Select a workspace item',
@@ -3202,7 +3277,6 @@ class IntegrationsTabScreen extends StatelessWidget {
       valueListenable: store.services,
       builder: (context, services, _) {
         return MultiTypeListDetailRouter(
-          dividerBuilder: HandleDivider.builder,
           emptyStateBuilder: (_) => const DemoEmptyPane(
             icon: Icons.extension_outlined,
             message: 'Select an integration',
@@ -3293,7 +3367,6 @@ class AppearanceTabScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MultiTypeListDetailRouter(
-      dividerBuilder: HandleDivider.builder,
       emptyStateBuilder: (_) => const DemoEmptyPane(
         icon: Icons.palette_outlined,
         message: 'Select a setting',
@@ -3332,7 +3405,6 @@ class AdvancedTabScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MultiTypeListDetailRouter(
-      dividerBuilder: HandleDivider.builder,
       emptyStateBuilder: (_) => const DemoEmptyPane(
         icon: Icons.settings_suggest_outlined,
         message: 'Select an item',

@@ -1,5 +1,11 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+
+import 'package:adaptive_layouts/src/core/shared/expanded_entry_style.dart';
+import 'package:adaptive_layouts/src/core/shared/pane_collapse.dart';
 import 'package:adaptive_layouts/src/core/shared/pane_anchor.dart';
 import 'package:adaptive_layouts/src/core/shared/pane_resize_mode.dart';
+import 'package:adaptive_layouts/src/core/shared/pane_width_memory.dart';
 
 /// Expanded-layout pane configuration for `ListDetailLayout`.
 ///
@@ -23,6 +29,14 @@ class PaneConfig {
     this.anchors = const [],
     this.initialAnchorIndex = 1,
     this.resizeMode = PaneResizeMode.ratio,
+    this.entryStyle = ExpandedEntryStyle.reveal,
+    this.widthMemory = PaneWidthMemory.persist,
+    this.settleDuration = const Duration(milliseconds: 220),
+    this.settleCurve = Curves.easeOutCubic,
+    this.dividerHitWidth = 24,
+    this.collapsible = PaneCollapsible.none,
+    this.collapsedSize = 0,
+    this.dividerSemanticsLabel = 'Pane divider',
   });
 
   /// Default width of the list pane in logical pixels.
@@ -48,9 +62,78 @@ class PaneConfig {
   /// How pane width is stored after dragging.
   final PaneResizeMode resizeMode;
 
+  /// How the list pane arrives when a breakpoint crossing enters the
+  /// expanded layout with an open detail.
+  final ExpandedEntryStyle entryStyle;
+
+  /// Whether a dragged divider position survives compact spells.
+  final PaneWidthMemory widthMemory;
+
+  /// Duration of the snap-to-anchor settle after a divider drag.
+  final Duration settleDuration;
+
+  /// Curve of the snap-to-anchor settle after a divider drag.
+  final Curve settleCurve;
+
+  /// Width of the divider's drag hit zone, centered on the pane border.
+  final double dividerHitWidth;
+
+  /// Which panes snap-collapse when the divider is forced past their
+  /// limit by half the pane's minimum size. Collapsed panes park at
+  /// [collapsedSize], remember their width, and restore when the parked
+  /// divider is dragged back out.
+  final PaneCollapsible collapsible;
+
+  /// Width of a collapsed pane. Zero hides it entirely; a small value
+  /// (e.g. 48) keeps an icon-rail sliver visible.
+  final double collapsedSize;
+
+  /// Screen-reader label for the divider. Localize by passing your own.
+  final String dividerSemanticsLabel;
+
   /// Sensible defaults for a standard list-detail layout.
   static const standard = PaneConfig();
 
   /// Standard defaults with list-detail anchor points.
   static const withAnchors = PaneConfig(anchors: PaneAnchor.listDetail);
+
+  // Value equality: layouts compare configs to decide whether to REBUILD
+  // their width model. Identity comparison resets the user's dragged
+  // divider on every rebuild for apps that construct the config inline.
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PaneConfig &&
+          other.defaultListWidth == defaultListWidth &&
+          other.minListWidth == minListWidth &&
+          other.maxListRatio == maxListRatio &&
+          listEquals(other.anchors, anchors) &&
+          other.initialAnchorIndex == initialAnchorIndex &&
+          other.resizeMode == resizeMode &&
+          other.entryStyle == entryStyle &&
+          other.widthMemory == widthMemory &&
+          other.settleDuration == settleDuration &&
+          other.settleCurve == settleCurve &&
+          other.dividerHitWidth == dividerHitWidth &&
+          other.collapsible == collapsible &&
+          other.collapsedSize == collapsedSize &&
+          other.dividerSemanticsLabel == dividerSemanticsLabel;
+
+  @override
+  int get hashCode => Object.hash(
+    defaultListWidth,
+    minListWidth,
+    maxListRatio,
+    Object.hashAll(anchors),
+    initialAnchorIndex,
+    resizeMode,
+    entryStyle,
+    widthMemory,
+    settleDuration,
+    settleCurve,
+    dividerHitWidth,
+    collapsible,
+    collapsedSize,
+    dividerSemanticsLabel,
+  );
 }

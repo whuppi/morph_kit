@@ -11,8 +11,10 @@ void main() {
           width: 24,
           height: 400,
           child: Builder(
-            builder: (context) =>
-                HandleDivider.builder(context, isDragging, isSettling),
+            builder: (context) => HandleDivider.builder(
+              context,
+              DividerState(isDragging: isDragging, isSettling: isSettling),
+            ),
           ),
         ),
       ),

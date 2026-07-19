@@ -1,12 +1,13 @@
 # adaptive_layouts — Architecture
 
-> **Type:** architecture · **Scope:** adaptive_layouts · **Status:** SHIPPED · **Last verified:** 2026-07-18
+> **Type:** architecture · **Scope:** adaptive_layouts · **Status:** SHIPPED · **Last verified:** 2026-07-19
 > **Companion docs:** [`CAPABILITY_ROADMAP.md`](CAPABILITY_ROADMAP.md) · [`UPDATING.md`](UPDATING.md)
 
 Adaptive layout widgets that morph between compact (mobile) and expanded
 (tablet / desktop) form factors — preserving pane widget state across the
-morph. Router-agnostic, state-management-agnostic. Consumed by apps via
-`path:` dependency; the runnable integration reference is
+morph. Router-agnostic, state-management-agnostic. The package is a growing
+family — each layout lives in its own `src/core/` subtree on shared
+vocabulary (`src/core/shared/`). The runnable integration reference is
 [`example/`](../example/) (a full multi-domain app with nested tab routers,
 URL sync, and modals).
 
@@ -29,19 +30,31 @@ lib/
         │   ├── compact_config.dart            # compact-mode data (animation, gestures, overlay)
         │   ├── compact_detail_overlay.dart    # OverlayPortal wrapper (internal)
         │   ├── detail_layout_mode.dart        # stacked / sideBySide + inline / overlay
+        │   ├── detail_page_route.dart         # route mode's real PageRoute (internal)
+        │   ├── expanded_empty_behavior.dart   # placeholder / listOnly empty-pane schools
         │   ├── list_detail_controller.dart    # selection + visibility controller
         │   ├── list_detail_layout.dart        # widget + state (lifecycle, animation, gestures)
         │   ├── list_detail_layout_builders.dart  # part: build methods
         │   └── paint_visibility_detector.dart # overlay suppression for inactive tabs
+        ├── modal/
+        │   ├── adaptive_modal.dart            # showAdaptiveModal + route-swap session
+        │   ├── modal_config.dart              # forwards to the Material routes
+        │   ├── modal_layout_mode.dart         # dialog / sheet
+        │   └── modal_morph.dart               # container-transform flight (internal)
         ├── shared/
         │   ├── adaptive_layout_config.dart    # inherited breakpoint config
-        │   ├── divider_builder.dart           # shared DividerBuilder typedef
+        │   ├── divider_builder.dart           # DividerBuilder typedef + DividerState
+        │   ├── expanded_entry_style.dart      # reveal vs resize expand entry
         │   ├── pane_anchor.dart               # divider snap points
-        │   ├── pane_config.dart               # expanded-pane data (widths, anchors, mode)
+        │   ├── pane_collapse.dart             # PaneSide + PaneCollapsible
+        │   ├── pane_config.dart               # expanded-pane data (widths, anchors, collapse, settle)
+        │   ├── pane_divider_region.dart       # divider interactivity: drag, keyboard, semantics
         │   ├── pane_resize_mode.dart          # ratio vs pixels
-        │   └── pane_width_model.dart          # width/drag/clamp/snap logic (internal)
+        │   ├── pane_scope.dart                # collapse state + actions for pane descendants
+        │   ├── pane_width_memory.dart         # persist vs resetOnReentry
+        │   └── pane_width_model.dart          # width/drag/clamp/snap/collapse logic (internal)
         └── split/
-            └── adaptive_split.dart            # generic two-pane split widget
+            └── split_layout.dart            # generic two-pane split widget
 ```
 
 **Dependency rule (load-bearing): core never imports components.** Components
@@ -71,12 +84,46 @@ Builders receive everything they need — `listBuilder(context, selectedId,
 onSelect)` and `detailBuilder(context, id, mode, onDismiss)` — so app code
 never touches layout internals.
 
-### `AdaptiveSplit`
+### `SplitLayout`
 
 The generic sibling: two panes (primary / secondary) with no selection
 concept. Expanded = side-by-side with the same draggable divider; compact =
 vertical stack or hidden secondary (`SplitCompactBehavior`). Used for
 player-style screens where both panes always exist.
+
+### `showAdaptiveModal`
+
+The modal member of the family — a function, not a widget, because modals
+are routes. Expanded widths get a real `DialogRoute`; compact widths a real
+`ModalBottomSheetRoute` — Material's own chrome, theming, drag physics, and
+accessibility. On a resize across the breakpoint the active route is
+atomically replaced (`removeRoute` + zero-entrance `push` in one frame) and
+the content element reparents into the new route under a stable `GlobalKey`.
+A session object proxies the pop result across swaps, so the caller's
+awaited future completes with the dismissal value no matter how many form
+changes happened. `ModalConfig` mostly forwards parameters to the two routes.
+
+By default the swap plays a **container transform** (Material's own name for
+the pattern): during the swap the live content mounts in a flight — an
+overlay entry above the routes — whose surface lerps rect, shape, color,
+elevation, and the drag-handle band from the outgoing form's geometry to the
+destination's. The destination is pushed as a **ghost**: real barrier, real
+layout machinery, zero visible chrome (transparent sheet without handle or
+drag; the dialog form's chrome is zeroed reactively). Nothing of the
+destination shows before the flight has become it — at landing, a
+same-frame swap restores the real chrome exactly under the flight's
+identical final frame. The ghost lays out a same-size placeholder (plus a
+`kMinInteractiveDimension` spacer standing in for the drag-handle band)
+whose LIVE rect is the flight's landing target, tracked every frame. The
+content is laid out TIGHT at the container's lerped width so it reflows
+with the morph; the placeholder's width is the flight's one-time
+natural-width sample (slot-decided for full-bleed content, self-decided
+otherwise) and only the height flows from the live measurement — so the
+target is the true final geometry and the handoff is pixel-clean. Both resting forms clip (`Clip.antiAlias`)
+to match the flight's clipped surface. Dismissal mid-flight lands the content
+into the exiting route immediately; a second breakpoint crossing retargets
+the flight from its current visual state. `ModalConfig(morph: false)`
+restores the instant cut.
 
 ### `ListDetailController<T>`
 
@@ -107,6 +154,21 @@ the same slide animation, swipe gesture, and back handling.
   navs, tab bars — while the widget stays in the tree (state preserved).
   `CompactConfig.useRootOverlay` picks the nearest vs root overlay, same
   convention as `Overlay.of` / `Navigator.of`.
+- **`route`**: the detail is pushed as a REAL page route
+  (`MaterialRouteTransitionMixin` on a non-opaque `PageRoute`), so the
+  app's `PageTransitionsTheme` — platform transitions, predictive back,
+  Cupertino edge swipes — applies natively; back belongs to the route
+  (no `PopScope`, no swipe machinery). One post-frame reconciler owns all
+  navigation: selection pushes, dismissal pops with the real exit (the
+  content rides the route out and dies with it — dismissal IS
+  deselection, so there is no pop-handoff and predictive-back cancel
+  needs nothing), resize swaps remove/push instantly while the keyed
+  detail reparents between route and pane (one key holder per frame; a
+  one-frame inline bridge covers the push gap). The paint probe
+  suppresses hidden tabs: a build pass that ends unpainted removes the
+  route (selection kept), and the next paint re-pushes instantly — the
+  route is non-opaque precisely so the layout below keeps painting for
+  this check.
 
 ### The always-showing portal
 
@@ -143,8 +205,8 @@ machinery is in [`UPDATING.md`](UPDATING.md).
 
 ## 4. State preservation across the morph
 
-Detail (and both `AdaptiveSplit` panes) are mounted under stable
-`GlobalKey`s. When the layout morphs compact ↔ expanded, Flutter reparents
+The list, the detail, and both `SplitLayout` panes are mounted under
+stable `GlobalKey`s. When the layout morphs compact ↔ expanded, Flutter reparents
 the same element instead of rebuilding it — text drafts, scroll positions,
 and in-flight animations survive a window resize. This is the package's
 strongest guarantee and the reason the morph is widget-level rather than
@@ -157,10 +219,20 @@ external `controller.dismiss()` calls, via a last-seen-id fallback).
 
 ---
 
+The modal extends the same mechanism across routes: all routes of a
+Navigator share one Overlay — one element tree — so the keyed content
+reparents between the outgoing and incoming route in the swap frame exactly
+as pane content does between compact and expanded builds.
+
 ## 5. Pane width: config, model, anchors
 
-`PaneConfig` is pure data: `defaultListWidth`, `minListWidth`,
-`maxListRatio`, `anchors`, `initialAnchorIndex`, `resizeMode`.
+`PaneConfig` is pure data — widths and clamps (`defaultListWidth`,
+`minListWidth`, `maxListRatio`), anchors (`anchors`,
+`initialAnchorIndex`), modes and memory (`resizeMode`, `entryStyle`,
+`widthMemory`), settle knobs (`settleDuration`, `settleCurve`), the
+divider hit zone (`dividerHitWidth`, `dividerSemanticsLabel`), and
+collapse (`collapsible`, `collapsedSize`). It compares by value, so
+inline-constructed configs never reset a dragged divider.
 
 `PaneWidthModel` (internal, shared by both widgets) owns the math:
 
@@ -170,14 +242,34 @@ external `controller.dismiss()` calls, via a last-seen-id fallback).
 - **Pixels mode:** the pane keeps a fixed pixel width across window resizes.
 - **Clamps:** every read clamps to `[minListWidth, maxListRatio × width]`;
   when a narrow window pushes the max below the min, min wins.
-- **Anchors:** on drag end the divider animates (220ms, easeOutCubic) to the
-  nearest anchor; the divider builder receives `isSettling: true` during the
-  animation. Anchor positions are clamped like everything else. Empty
-  `anchors` = free dragging, no snap.
+- **Anchors:** on drag end the divider animates (the settle knobs; 220ms
+  easeOutCubic by default) to the nearest anchor; the divider builder
+  receives `isSettling: true` during the animation. Anchor positions are
+  clamped like everything else. Empty `anchors` = free dragging, no snap.
+- **Collapse:** desktop split-view mechanics in model state. Forcing the
+  drag past a limit by half the pane's minimum snaps the pane to
+  `collapsedSize` with the pre-collapse width cached; releasing short of
+  the threshold springs back. Programmatic `collapse`/`restore` snap
+  instantly. `PaneSide`/`PaneCollapsible` stay DIRECTIONAL in every
+  public surface; `SplitLayout` with an end-positioned primary flips
+  them at its boundary into the model's primary-measured space.
 
-The divider itself is a 24px invisible hit zone centered on the pane border;
-`dividerBuilder` (nullable) draws the visual inside it. Divider drag is
-RTL-aware, and inverted for an end-positioned `AdaptiveSplit` primary.
+`PaneDividerRegion` (shared) owns every divider interaction: the drag
+gestures, double-click reset to the default width, Tab focus with
+arrow-key resizing, Enter collapse/restore, Home/End jumps, and the
+WAI-ARIA adjustable semantics (share value plus stepped values). Both
+widgets supply callbacks; neither builds its own divider gestures. The
+hit zone (`dividerHitWidth`, default 24) is centered on the pane
+border; `dividerBuilder` (nullable) draws the visual inside it. Drag is
+RTL-aware, and inverted for an end-positioned `SplitLayout` primary.
+
+`PaneScope` (an `InheritedWidget` both layouts plant) gives pane
+descendants the collapse state (`collapsed`, `collapsedSize`,
+`isExpanded`) and the `collapse`/`restore` actions. Collapsed panes
+render either their content clipped at its floor width or, when the
+widget's `collapsed*Builder` is provided, an app-built rail laid out at
+the real `collapsedSize` while the pane parks offstage
+(`TickerMode`-paused) with its state alive.
 
 ---
 
@@ -197,7 +289,8 @@ slide direction, swipe-dismiss direction, and divider drag all flip.
 | Two-layer core + components | Core is pure layout; components are replaceable defaults. Nullable builder params keep the dependency arrow one-way. |
 | Controller pattern | One code path; simple users get an auto-controller, advanced users bring their own. Same as `ScrollController`. |
 | `isDetailVisible` animation-aware | App shells need visual state (nav-bar timing), not data state. |
-| Widget-level morph, not routes | Instance preservation across resize is the hard guarantee; a route-based compact detail would need a no-transition page dance to keep it. |
+| Widget-level foundation; routes opted in on top | Instance preservation across resize is the hard guarantee, so the layout owns the element's lifecycle; `CompactDetailMode.route` then hosts the same keyed element in a real page, with the layout choreographing the one-owner-per-frame handoff a route-first design could not. |
+| Real Material routes for the modal | Dialogs and sheets should inherit app theme, drag physics, and future framework behavior; the atomic route swap + keyed reparent keeps the instance guarantee without re-implementing chrome. |
 | Always-showing portal + paint probe | The only found shape that both dodges `OverlayPortalController`'s layout-phase assertion and suppresses inactive tabs' overlays. |
 | `select()` no-op on same id | No guessed intent; toggle is the caller's logic. |
 | Selection validation NOT in the package | Layout doesn't know about data existence; the app clears selection when an entity dies (see the example's `selectedIdExists` pattern). |

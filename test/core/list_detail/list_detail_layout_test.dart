@@ -107,13 +107,195 @@ void main() {
         closeTo(before - 100, 30),
       );
 
-      // Dragging far past maxListRatio clamps.
-      await tester.dragFrom(Offset(before - 100, 400), const Offset(900, 0));
+      // Dragging far past maxListRatio clamps. Grab the divider where it
+      // is now — touch slop shifts the settled position a little.
+      final mid = tester.getSize(find.byKey(const Key('list'))).width;
+      await tester.dragFrom(Offset(mid, 400), const Offset(900, 0));
       await tester.pumpAndSettle();
       expect(
         tester.getSize(find.byKey(const Key('list'))).width,
         1000 * const PaneConfig().maxListRatio,
       );
+    });
+
+    testWidgets(
+      'divider position survives compact spells and equal-value config '
+      'rebuilds',
+      (tester) async {
+        // Non-const configs: the inline-construction shape every app has.
+        await pumpApp(
+          tester,
+          buildLayout(paneConfig: PaneConfig()),
+          size: expanded,
+        );
+        final before = tester.getSize(find.byKey(const Key('list'))).width;
+        await tester.dragFrom(Offset(before, 400), const Offset(-100, 0));
+        await tester.pumpAndSettle();
+        final dragged = tester.getSize(find.byKey(const Key('list'))).width;
+        expect(dragged, isNot(before));
+
+        // Rebuild with a NEW but value-equal config instance — must NOT
+        // reset the width model (identity comparison did).
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Directionality(
+              textDirection: TextDirection.ltr,
+              child: buildLayout(paneConfig: PaneConfig()),
+            ),
+          ),
+        );
+        await resizeWindow(tester, compact);
+        await resizeWindow(tester, expanded);
+
+        expect(
+          tester.getSize(find.byKey(const Key('list'))).width,
+          closeTo(dragged, 1),
+        );
+      },
+    );
+
+    testWidgets('settle knobs: custom duration and curve are honored', (
+      tester,
+    ) async {
+      await pumpApp(
+        tester,
+        buildLayout(
+          paneConfig: const PaneConfig(
+            minListWidth: 100,
+            maxListRatio: 0.9,
+            anchors: [PaneAnchor.fromStart(240), PaneAnchor.fromStart(500)],
+            initialAnchorIndex: 0,
+            settleDuration: Duration(seconds: 1),
+          ),
+        ),
+        size: expanded,
+      );
+
+      await tester.dragFrom(const Offset(240, 400), const Offset(200, 0));
+      await tester.pump(const Duration(milliseconds: 400));
+      // Default 220ms settle would already be done — the 1s one is not.
+      final mid = tester.getSize(find.byKey(const Key('list'))).width;
+      expect(mid, isNot(500));
+
+      await tester.pumpAndSettle();
+      expect(tester.getSize(find.byKey(const Key('list'))).width, 500);
+    });
+
+    testWidgets('dividerHitWidth: a wide zone accepts far-off drags', (
+      tester,
+    ) async {
+      await pumpApp(
+        tester,
+        buildLayout(paneConfig: const PaneConfig(dividerHitWidth: 120)),
+        size: expanded,
+      );
+      final before = tester.getSize(find.byKey(const Key('list'))).width;
+
+      // 50px from the border — outside the default 24px zone.
+      await tester.dragFrom(Offset(before - 50, 400), const Offset(-100, 0));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getSize(find.byKey(const Key('list'))).width,
+        lessThan(before),
+      );
+    });
+
+    testWidgets('force-drag past min collapses the list; drag-out restores', (
+      tester,
+    ) async {
+      final states = <DividerState>[];
+      await pumpApp(
+        tester,
+        buildLayout(
+          paneConfig: const PaneConfig(collapsible: PaneCollapsible.start),
+          dividerBuilder: (context, state) {
+            states.add(state);
+            return const SizedBox();
+          },
+        ),
+        size: expanded,
+      );
+      final before = tester.getSize(find.byKey(const Key('list'))).width;
+
+      // Pin at min without crossing the collapse threshold — springs back.
+      await tester.dragFrom(Offset(before, 400), const Offset(-350, 0));
+      await tester.pumpAndSettle();
+      expect(tester.getSize(find.byKey(const Key('list'))).width, 200);
+      expect(states.last.atMinimum, isTrue);
+      expect(states.last.collapsed, isNull);
+
+      // Force past min by more than half the min — snap collapse. The
+      // content stays laid at min (clip, never squish); the slot is 0 so
+      // the empty pane starts at the window edge.
+      await tester.dragFrom(const Offset(200, 400), const Offset(-320, 0));
+      await tester.pumpAndSettle();
+      expect(states.last.collapsed, PaneSide.start);
+      expect(tester.getSize(find.byKey(const Key('list'))).width, 200);
+      expect(tester.getTopLeft(find.text('empty state')).dx, lessThan(500));
+
+      // The parked divider is still draggable — pull it back out.
+      await tester.dragFrom(const Offset(10, 400), const Offset(320, 0));
+      await tester.pumpAndSettle();
+      expect(states.last.collapsed, isNull);
+      expect(
+        tester.getSize(find.byKey(const Key('list'))).width,
+        greaterThanOrEqualTo(200),
+      );
+    });
+
+    testWidgets('collapsedSize keeps an icon-rail sliver of the list', (
+      tester,
+    ) async {
+      await pumpApp(
+        tester,
+        buildLayout(
+          paneConfig: const PaneConfig(
+            collapsible: PaneCollapsible.start,
+            collapsedSize: 48,
+          ),
+        ),
+        size: expanded,
+      );
+      final before = tester.getSize(find.byKey(const Key('list'))).width;
+      await tester.dragFrom(Offset(before, 400), const Offset(-450, 0));
+      await tester.pumpAndSettle();
+
+      // Slot is 48 wide; content laid at min and clipped to the sliver.
+      expect(tester.getSize(find.byKey(const Key('list'))).width, 200);
+      final clip = tester.getSize(
+        find.ancestor(
+          of: find.byKey(const Key('list')),
+          matching: find.byType(ClipRect),
+        ),
+      );
+      expect(clip.width, 48);
+    });
+
+    testWidgets('widthMemory.resetOnReentry forgets the drag on re-entry', (
+      tester,
+    ) async {
+      await pumpApp(
+        tester,
+        buildLayout(
+          paneConfig: const PaneConfig(
+            widthMemory: PaneWidthMemory.resetOnReentry,
+          ),
+        ),
+        size: expanded,
+      );
+      final before = tester.getSize(find.byKey(const Key('list'))).width;
+      await tester.dragFrom(Offset(before, 400), const Offset(-100, 0));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getSize(find.byKey(const Key('list'))).width,
+        isNot(before),
+      );
+
+      await resizeWindow(tester, compact);
+      await resizeWindow(tester, expanded);
+
+      // Fresh divider: back to the default width, drag forgotten.
+      expect(tester.getSize(find.byKey(const Key('list'))).width, before);
     });
 
     testWidgets('divider settles to the nearest anchor after a drag', (
@@ -129,8 +311,8 @@ void main() {
             anchors: [PaneAnchor.fromStart(240), PaneAnchor.fromStart(500)],
             initialAnchorIndex: 0,
           ),
-          dividerBuilder: (context, isDragging, isSettling) {
-            settleSeen.add(isSettling);
+          dividerBuilder: (context, state) {
+            settleSeen.add(state.isSettling);
             return const SizedBox();
           },
         ),

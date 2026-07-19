@@ -37,6 +37,20 @@ void main() {
       );
     });
 
+    test('equality holds for runtime instances (NaN sentinel)', () {
+      // Non-const: const canonicalization would short-circuit through
+      // `identical` and mask a NaN != NaN field comparison.
+      double n(double v) => v;
+      expect(PaneAnchor.fromStart(n(240)), PaneAnchor.fromStart(n(240)));
+      expect(PaneAnchor.fromEnd(n(240)), PaneAnchor.fromEnd(n(240)));
+      expect(PaneAnchor.proportion(n(0.5)), PaneAnchor.proportion(n(0.5)));
+      expect(PaneAnchor.fromStart(n(240)), isNot(PaneAnchor.fromStart(n(241))));
+      expect(
+        PaneConfig(anchors: [PaneAnchor.fromStart(n(240))]),
+        PaneConfig(anchors: [PaneAnchor.fromStart(n(240))]),
+      );
+    });
+
     test('listDetail preset spans collapsed to fully expanded', () {
       expect(PaneAnchor.listDetail, hasLength(5));
       expect(PaneAnchor.listDetail.first.resolve(1000), 0);

@@ -10,8 +10,10 @@ void main() {
           width: 24,
           height: 400,
           child: Builder(
-            builder: (context) =>
-                MaterialDivider.builder(context, isDragging, isSettling),
+            builder: (context) => MaterialDivider.builder(
+              context,
+              DividerState(isDragging: isDragging, isSettling: isSettling),
+            ),
           ),
         ),
       ),
