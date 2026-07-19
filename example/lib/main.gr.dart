@@ -1186,22 +1186,6 @@ class WorkPrefsTabRoute extends PageRouteInfo<void> {
 }
 
 /// generated route for
-/// [WorkbenchTabScreen]
-class WorkbenchTabRoute extends PageRouteInfo<void> {
-  const WorkbenchTabRoute({List<PageRouteInfo>? children})
-    : super(WorkbenchTabRoute.name, initialChildren: children);
-
-  static const String name = 'WorkbenchTabRoute';
-
-  static PageInfo page = PageInfo(
-    name,
-    builder: (data) {
-      return const WorkbenchTabScreen();
-    },
-  );
-}
-
-/// generated route for
 /// [WorkspaceDetailScreen]
 class WorkspaceDetailRoute extends PageRouteInfo<WorkspaceDetailRouteArgs> {
   WorkspaceDetailRoute({

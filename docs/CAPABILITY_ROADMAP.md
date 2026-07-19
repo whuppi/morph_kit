@@ -65,12 +65,6 @@ while an active row is not `DONE` or `WONT_DO`. Statuses: `DONE` ·
 | Collapsed icon-rail slots | DONE | `collapsedListBuilder`/`collapsedDetailBuilder` (+ split equivalents): rail lays out at the real `collapsedSize`; the pane parks offstage (tickers paused) with its state alive; list pane gained its own reparenting GlobalKey |
 | Divider keyboard + screen-reader support | DONE | WAI-ARIA window splitter: Tab-focusable, arrows resize, Enter toggles collapse, Home/End jump, double-click resets; semantics increase/decrease with pane-share value |
 | PaneScope (pane state for descendants) | DONE | `collapsed`/`isExpanded` + `collapse`/`restore` actions; the hamburger recipe |
-| ThreePaneLayout: role-priority partitions | DONE | 2-3 panes, two width thresholds; priority picks who shows, list order picks where; flexible pane = highest visible priority; shared width model + divider region per side pane |
-| ThreePaneLayout: offstage state retention | DONE | Hidden panes live in Offstage + TickerMode(false); dragged widths and pane state survive partition round trips |
-| ThreePaneLayout: levitate adapt strategy (overlay + scrim) | PLANNED | Compose's Levitate — tertiary floats over content on medium widths |
-| ThreePaneLayout: partition-change motion | PLANNED | Animate panes in/out on threshold crossings, reusing the crossing-motion machinery |
-| ThreePaneLayout: per-pane collapse | PLANNED | Reuse the model's snap-collapse once the multi-divider interplay is designed |
-| ListDetailLayout re-derived on the pane-scaffold core | PLANNED | Parallel-copy migration; ListDetailLayout keeps its full compact-mode machinery until the core can express it |
 | Anchor snap points with settle animation | DONE | Nearest anchor on drag end; `isSettling` fed to divider builders |
 | Initial width from anchor index | DONE | `PaneConfig.initialAnchorIndex`, anchors non-empty |
 

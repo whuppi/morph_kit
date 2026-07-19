@@ -731,7 +731,6 @@ abstract final class Paths {
   // Ops domain
   static const ops = 'ops';
   static const monitor = 'monitor';
-  static const workbench = 'workbench';
   static const runs = 'runs';
   static const builds = 'builds';
   static const buildWithParam = ':${Params.buildId}';
@@ -917,7 +916,6 @@ class AppRouter extends RootStackRouter {
                   path: Paths.monitor,
                   initial: true,
                 ),
-                AutoRoute(page: WorkbenchTabRoute.page, path: Paths.workbench),
                 AutoRoute(
                   page: RunsShellRoute.page,
                   path: Paths.runs,
@@ -2882,83 +2880,11 @@ class OpsDomainScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DomainTabsRouter(
-      routes: const [
-        MonitorTabRoute(),
-        WorkbenchTabRoute(),
-        RunsShellRoute(),
-        SetupTabRoute(),
-      ],
+      routes: const [MonitorTabRoute(), RunsShellRoute(), SetupTabRoute()],
       tabs: [
         domainTab(icon: Icons.monitor_heart_outlined, label: 'Monitor'),
-        domainTab(icon: Icons.view_week_outlined, label: 'Workbench'),
         domainTab(icon: Icons.play_circle_outline, label: 'Runs'),
         domainTab(icon: Icons.tune_outlined, label: 'Setup'),
-      ],
-    );
-  }
-}
-
-/// ThreePaneLayout demo: outline + editor + inspector, appearing and
-/// yielding by role priority as the window crosses 720 and 1200.
-@RoutePage()
-class WorkbenchTabScreen extends StatelessWidget {
-  const WorkbenchTabScreen({super.key});
-
-  Widget _panel(BuildContext context, String title, IconData icon) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return ColoredBox(
-      color: colorScheme.surfaceContainerLow,
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                Icon(icon, size: 18, color: colorScheme.primary),
-                const SizedBox(width: 8),
-                Text(title, style: Theme.of(context).textTheme.titleSmall),
-              ],
-            ),
-          ),
-          const Divider(height: 1),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(12),
-              children: [
-                for (var i = 1; i <= 30; i++)
-                  ListTile(dense: true, title: Text('$title item $i')),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return ThreePaneLayout(
-      dividerBuilder: PackageSettings.instance.dividerBuilder,
-      panes: [
-        PaneSpec(
-          role: PaneRole.secondary,
-          preferredWidth: 280,
-          minWidth: 200,
-          builder: (context) =>
-              _panel(context, 'Outline', Icons.segment_outlined),
-        ),
-        PaneSpec(
-          role: PaneRole.primary,
-          builder: (context) =>
-              _panel(context, 'Editor', Icons.edit_note_outlined),
-        ),
-        PaneSpec(
-          role: PaneRole.tertiary,
-          preferredWidth: 280,
-          minWidth: 200,
-          builder: (context) =>
-              _panel(context, 'Inspector', Icons.tune_outlined),
-        ),
       ],
     );
   }

@@ -298,37 +298,6 @@ AdaptiveSplit(
 
 Wide: side by side with the same draggable divider (primary at the start or end via `primaryPosition`). Narrow: a vertical stack, or primary only. Both panes keep their state across the morph, same as the detail pane does.
 
-### Three panes by role priority
-
-`ThreePaneLayout` is the pane-scaffold shape from Material's adaptive
-layouts: up to three panes that appear and yield as the window grows.
-Two thresholds carve the width into partitions (one pane below the
-expanded breakpoint, two below `largeBreakpoint`, three above). Roles
-decide WHO wins a slot — `primary` survives to the narrowest window —
-and the pane list's order decides WHERE, decoupled from priority:
-
-```dart
-ThreePaneLayout(
-  panes: [
-    PaneSpec(role: PaneRole.secondary, preferredWidth: 300,
-        builder: (_) => Outline()),
-    PaneSpec(role: PaneRole.primary, builder: (_) => Editor()),
-    PaneSpec(role: PaneRole.tertiary, preferredWidth: 280,
-        builder: (_) => Inspector()),
-  ],
-)
-```
-
-The highest-priority visible pane flexes; the others hold draggable
-widths (full divider contract — drag, keyboard, double-click reset,
-screen readers). Hidden panes stay alive offstage with tickers paused,
-so an inspector's scroll position survives the window shrinking and
-growing back (`retainHiddenPanes: false` opts out).
-
-Use `ListDetailLayout` when compact needs list/detail *navigation*;
-use `ThreePaneLayout` when panes are supporting surfaces that simply
-yield to width.
-
 ### A modal that swaps between dialog and bottom sheet
 
 `showAdaptiveModal` presents a real Material dialog on wide windows and a real Material bottom sheet on narrow ones — `DialogRoute` and `ModalBottomSheetRoute` underneath, so your `DialogTheme` / `BottomSheetTheme`, Material's drag physics, and back handling all apply. Resize across the breakpoint while it is open and the modal plays a container transform: the surface glides and reshapes from one form to the other with the live content inside, and a half-typed form field survives the trip. `ModalConfig(morph: false)` swaps instantly instead.
