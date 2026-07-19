@@ -1,5 +1,5 @@
 name: morph_kit
-version: 0.0.0
+version: 0.1.0
 description: >-
   Adaptive, responsive layouts that morph between phone and desktop forms —
   list-detail, split view panes, dialog to bottom sheet modals — preserving

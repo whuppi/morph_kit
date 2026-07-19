@@ -46,7 +46,7 @@ Layout widgets that morph between phone and desktop forms. On a phone, the detai
 
 ```yaml
 dependencies:
-  morph_kit:
+  morph_kit: ^0.1.0
 ```
 
 Nothing else to do, on any platform. Pure Flutter: no native code, no assets, no setup.
