@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:adaptive_layouts/src/core/shared/expanded_entry_style.dart';
+import 'package:adaptive_layouts/src/core/shared/pane_collapse.dart';
 import 'package:adaptive_layouts/src/core/shared/pane_anchor.dart';
 import 'package:adaptive_layouts/src/core/shared/pane_resize_mode.dart';
 import 'package:adaptive_layouts/src/core/shared/pane_width_memory.dart';
@@ -33,7 +34,8 @@ class PaneConfig {
     this.settleDuration = const Duration(milliseconds: 220),
     this.settleCurve = Curves.easeOutCubic,
     this.dividerHitWidth = 24,
-    this.collapseOnDoubleTap = false,
+    this.collapsible = PaneCollapsible.none,
+    this.collapsedSize = 0,
   });
 
   /// Default width of the list pane in logical pixels.
@@ -75,14 +77,15 @@ class PaneConfig {
   /// Width of the divider's drag hit zone, centered on the pane border.
   final double dividerHitWidth;
 
-  /// Double-tapping the divider toggles the pane collapsed and back —
-  /// the macOS split-view gesture; Material's equivalent is pane
-  /// expansion anchors at the edges. Collapse animates to
-  /// [minListWidth], so a TRUE collapse needs `minListWidth: 0`
-  /// (drag-to-collapse additionally needs `maxListRatio: 1.0` and edge
-  /// anchors to reach the other side). Restoring returns to the
-  /// pre-collapse position, or [defaultListWidth] when there is none.
-  final bool collapseOnDoubleTap;
+  /// Which panes snap-collapse when the divider is forced past their
+  /// limit by half the pane's minimum size. Collapsed panes park at
+  /// [collapsedSize], remember their width, and restore when the parked
+  /// divider is dragged back out.
+  final PaneCollapsible collapsible;
+
+  /// Width of a collapsed pane. Zero hides it entirely; a small value
+  /// (e.g. 48) keeps an icon-rail sliver visible.
+  final double collapsedSize;
 
   /// Sensible defaults for a standard list-detail layout.
   static const standard = PaneConfig();
@@ -108,7 +111,8 @@ class PaneConfig {
           other.settleDuration == settleDuration &&
           other.settleCurve == settleCurve &&
           other.dividerHitWidth == dividerHitWidth &&
-          other.collapseOnDoubleTap == collapseOnDoubleTap;
+          other.collapsible == collapsible &&
+          other.collapsedSize == collapsedSize;
 
   @override
   int get hashCode => Object.hash(
@@ -123,6 +127,7 @@ class PaneConfig {
     settleDuration,
     settleCurve,
     dividerHitWidth,
-    collapseOnDoubleTap,
+    collapsible,
+    collapsedSize,
   );
 }

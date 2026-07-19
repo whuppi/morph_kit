@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:adaptive_layouts/src/core/shared/adaptive_layout_config.dart';
 import 'package:adaptive_layouts/src/core/shared/divider_builder.dart';
+import 'package:adaptive_layouts/src/core/shared/pane_collapse.dart';
 import 'package:adaptive_layouts/src/core/shared/pane_config.dart';
 import 'package:adaptive_layouts/src/core/shared/pane_width_memory.dart';
 import 'package:adaptive_layouts/src/core/shared/pane_width_model.dart';
@@ -202,12 +203,16 @@ class _AdaptiveSplitState extends State<AdaptiveSplit>
 
   void _handleDividerDragStart() {
     _settleController.stop();
+    _paneWidth.dragStart(_lastExpandedWidth);
     setState(() => _isDividerDragging = true);
   }
 
   void _handleDividerDragEnd() {
+    _paneWidth.dragEnd();
     setState(() => _isDividerDragging = false);
-    _settleToNearestAnchor();
+    // A collapsed pane parks — anchor snapping applies only to visible
+    // panes.
+    if (_paneWidth.collapsed == null) _settleToNearestAnchor();
   }
 
   void _handleDividerDragUpdate(double delta) {
@@ -223,40 +228,10 @@ class _AdaptiveSplitState extends State<AdaptiveSplit>
 
   /// Animates the divider to the nearest anchor. No-op without anchors.
   void _settleToNearestAnchor() {
-    final target = _paneWidth.snapTarget(_lastExpandedWidth);
+    final availableWidth = _lastExpandedWidth;
+    final target = _paneWidth.snapTarget(availableWidth);
     if (target == null) return;
-    _animateDividerTo(target);
-  }
 
-  /// Pre-collapse position as a fraction of the window, so a restore
-  /// after a resize lands proportionally.
-  double? _preCollapseFraction;
-
-  /// Double-tap on the divider: collapse the primary pane to
-  /// [PaneConfig.minListWidth], or restore the pre-collapse position
-  /// (default width when none).
-  void _handleDividerDoubleTap() {
-    final availableWidth = _lastExpandedWidth;
-    final current = _paneWidth.width(availableWidth);
-    final collapsed = widget.paneConfig.minListWidth;
-    if (current > collapsed + 0.5) {
-      _preCollapseFraction = current / availableWidth;
-      _animateDividerTo(collapsed);
-    } else {
-      final fraction = _preCollapseFraction;
-      final restore = fraction != null
-          ? fraction * availableWidth
-          : PaneWidthModel(
-              widget.paneConfig,
-              referenceWidth: _referenceWidth,
-            ).width(availableWidth);
-      _animateDividerTo(restore);
-    }
-  }
-
-  /// Animates the divider to [target] with the settle machinery.
-  void _animateDividerTo(double target) {
-    final availableWidth = _lastExpandedWidth;
     final begin = _paneWidth.width(availableWidth);
     final curve = CurvedAnimation(
       parent: _settleController,
@@ -314,26 +289,63 @@ class _AdaptiveSplitState extends State<AdaptiveSplit>
     );
   }
 
+  /// The divider's interaction state for [DividerBuilder]s.
+  DividerState _dividerState(double availableWidth) {
+    final collapsed = _paneWidth.collapsed;
+    final width = _paneWidth.width(availableWidth);
+    final max = availableWidth * widget.paneConfig.maxListRatio;
+    return DividerState(
+      isDragging: _isDividerDragging,
+      isSettling: _isDividerSettling,
+      atMinimum:
+          collapsed == null && width <= widget.paneConfig.minListWidth + 0.5,
+      atMaximum: collapsed == null && width >= max - 0.5,
+      collapsed: collapsed,
+    );
+  }
+
   /// Expanded: side-by-side panes with draggable divider.
   Widget _buildExpandedLayout(BoxConstraints constraints) {
     final availableWidth = constraints.maxWidth;
     _lastExpandedWidth = availableWidth;
     final primaryWidth = _paneWidth.width(availableWidth);
+    final collapsed = _paneWidth.collapsed;
 
-    final primaryPane = SizedBox(
-      width: primaryWidth,
-      child: KeyedSubtree(
-        key: _primaryKey,
-        child: widget.primaryBuilder(context, true),
-      ),
+    // A collapsed pane's content stays laid out at its minimum width —
+    // its last legal layout — and clips as the slot shrinks below it.
+    Widget primaryContent = KeyedSubtree(
+      key: _primaryKey,
+      child: widget.primaryBuilder(context, true),
     );
+    if (collapsed == PaneSide.start) {
+      primaryContent = ClipRect(
+        child: OverflowBox(
+          minWidth: widget.paneConfig.minListWidth,
+          maxWidth: widget.paneConfig.minListWidth,
+          alignment: AlignmentDirectional.centerStart,
+          child: primaryContent,
+        ),
+      );
+    }
+    final primaryPane = SizedBox(width: primaryWidth, child: primaryContent);
 
-    final secondaryPane = Expanded(
-      child: KeyedSubtree(
-        key: _secondaryKey,
-        child: widget.secondaryBuilder(context, true),
-      ),
+    Widget secondaryContent = KeyedSubtree(
+      key: _secondaryKey,
+      child: widget.secondaryBuilder(context, true),
     );
+    if (collapsed == PaneSide.end) {
+      final minSecondary =
+          availableWidth * (1 - widget.paneConfig.maxListRatio);
+      secondaryContent = ClipRect(
+        child: OverflowBox(
+          minWidth: minSecondary,
+          maxWidth: minSecondary,
+          alignment: AlignmentDirectional.centerEnd,
+          child: secondaryContent,
+        ),
+      );
+    }
+    final secondaryPane = Expanded(child: secondaryContent);
 
     final isStart = widget.primaryPosition == SplitPrimaryPosition.start;
     final first = isStart ? primaryPane : secondaryPane;
@@ -346,11 +358,16 @@ class _AdaptiveSplitState extends State<AdaptiveSplit>
         // Divider — visual (if builder provided) or invisible drag zone.
         PositionedDirectional(
           // Hit area centered on the pane border.
-          start: isStart
-              ? primaryWidth - widget.paneConfig.dividerHitWidth / 2
-              : availableWidth -
-                    primaryWidth -
-                    widget.paneConfig.dividerHitWidth / 2,
+          start:
+              (isStart
+                      ? primaryWidth - widget.paneConfig.dividerHitWidth / 2
+                      : availableWidth -
+                            primaryWidth -
+                            widget.paneConfig.dividerHitWidth / 2)
+                  .clamp(
+                    0.0,
+                    availableWidth - widget.paneConfig.dividerHitWidth,
+                  ),
           top: 0,
           bottom: 0,
           child: GestureDetector(
@@ -359,19 +376,10 @@ class _AdaptiveSplitState extends State<AdaptiveSplit>
             onHorizontalDragUpdate: (d) =>
                 _handleDividerDragUpdate(d.primaryDelta ?? 0),
             onHorizontalDragEnd: (_) => _handleDividerDragEnd(),
-            // Registered only when enabled: a double-tap recognizer adds
-            // a disambiguation delay to other taps in the zone.
-            onDoubleTap: widget.paneConfig.collapseOnDoubleTap
-                ? _handleDividerDoubleTap
-                : null,
             child: SizedBox(
               width: widget.paneConfig.dividerHitWidth,
               child: dividerBuilder != null
-                  ? dividerBuilder(
-                      context,
-                      _isDividerDragging,
-                      _isDividerSettling,
-                    )
+                  ? dividerBuilder(context, _dividerState(availableWidth))
                   : null,
             ),
           ),

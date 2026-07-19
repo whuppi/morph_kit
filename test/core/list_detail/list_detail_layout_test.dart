@@ -198,6 +198,77 @@ void main() {
       );
     });
 
+    testWidgets('force-drag past min collapses the list; drag-out restores', (
+      tester,
+    ) async {
+      final states = <DividerState>[];
+      await pumpApp(
+        tester,
+        buildLayout(
+          paneConfig: const PaneConfig(collapsible: PaneCollapsible.start),
+          dividerBuilder: (context, state) {
+            states.add(state);
+            return const SizedBox();
+          },
+        ),
+        size: expanded,
+      );
+      final before = tester.getSize(find.byKey(const Key('list'))).width;
+
+      // Pin at min without crossing the collapse threshold — springs back.
+      await tester.dragFrom(Offset(before, 400), const Offset(-350, 0));
+      await tester.pumpAndSettle();
+      expect(tester.getSize(find.byKey(const Key('list'))).width, 200);
+      expect(states.last.atMinimum, isTrue);
+      expect(states.last.collapsed, isNull);
+
+      // Force past min by more than half the min — snap collapse. The
+      // content stays laid at min (clip, never squish); the slot is 0 so
+      // the empty pane starts at the window edge.
+      await tester.dragFrom(const Offset(200, 400), const Offset(-320, 0));
+      await tester.pumpAndSettle();
+      expect(states.last.collapsed, PaneSide.start);
+      expect(tester.getSize(find.byKey(const Key('list'))).width, 200);
+      expect(tester.getTopLeft(find.text('empty state')).dx, lessThan(500));
+
+      // The parked divider is still draggable — pull it back out.
+      await tester.dragFrom(const Offset(10, 400), const Offset(320, 0));
+      await tester.pumpAndSettle();
+      expect(states.last.collapsed, isNull);
+      expect(
+        tester.getSize(find.byKey(const Key('list'))).width,
+        greaterThanOrEqualTo(200),
+      );
+    });
+
+    testWidgets('collapsedSize keeps an icon-rail sliver of the list', (
+      tester,
+    ) async {
+      await pumpApp(
+        tester,
+        buildLayout(
+          paneConfig: const PaneConfig(
+            collapsible: PaneCollapsible.start,
+            collapsedSize: 48,
+          ),
+        ),
+        size: expanded,
+      );
+      final before = tester.getSize(find.byKey(const Key('list'))).width;
+      await tester.dragFrom(Offset(before, 400), const Offset(-450, 0));
+      await tester.pumpAndSettle();
+
+      // Slot is 48 wide; content laid at min and clipped to the sliver.
+      expect(tester.getSize(find.byKey(const Key('list'))).width, 200);
+      final clip = tester.getSize(
+        find.ancestor(
+          of: find.byKey(const Key('list')),
+          matching: find.byType(ClipRect),
+        ),
+      );
+      expect(clip.width, 48);
+    });
+
     testWidgets('widthMemory.resetOnReentry forgets the drag on re-entry', (
       tester,
     ) async {
@@ -238,8 +309,8 @@ void main() {
             anchors: [PaneAnchor.fromStart(240), PaneAnchor.fromStart(500)],
             initialAnchorIndex: 0,
           ),
-          dividerBuilder: (context, isDragging, isSettling) {
-            settleSeen.add(isSettling);
+          dividerBuilder: (context, state) {
+            settleSeen.add(state.isSettling);
             return const SizedBox();
           },
         ),

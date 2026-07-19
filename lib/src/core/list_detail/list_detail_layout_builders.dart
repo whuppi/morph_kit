@@ -53,8 +53,22 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
     final detailId = listOnly ? _visibleDetailId : selectedId;
     final dividerBuilder = widget.dividerBuilder;
 
+    final collapsed = _paneWidth.collapsed;
+
     Widget list = widget.listBuilder(context, selectedId, _handleSelect);
-    if (entry < 1.0 &&
+    if (collapsed == PaneSide.start) {
+      // A collapsed pane's content stays laid out at its minimum width —
+      // its last legal layout — and clips as the slot shrinks. Content
+      // never reflows below the floor the app designed for.
+      list = ClipRect(
+        child: OverflowBox(
+          minWidth: widget.paneConfig.minListWidth,
+          maxWidth: widget.paneConfig.minListWidth,
+          alignment: AlignmentDirectional.centerStart,
+          child: list,
+        ),
+      );
+    } else if (entry < 1.0 &&
         widget.paneConfig.entryStyle == ExpandedEntryStyle.reveal) {
       // Reveal (default): the arriving list is laid out at its FINAL
       // width and slides in clipped — its content never reflows during
@@ -72,6 +86,9 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
         ),
       );
     }
+
+    // The end pane's floor mirrors the start pane's ceiling.
+    final minDetailWidth = availableWidth * (1 - widget.paneConfig.maxListRatio);
 
     Widget detailSlot;
     if (detailId != null) {
@@ -93,7 +110,17 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
                 ),
               ),
       );
-      if (listOnly && pane < 1.0) {
+      if (collapsed == PaneSide.end) {
+        // Same clip-at-floor discipline as a collapsed start pane.
+        detailSlot = ClipRect(
+          child: OverflowBox(
+            minWidth: minDetailWidth,
+            maxWidth: minDetailWidth,
+            alignment: AlignmentDirectional.centerEnd,
+            child: detailSlot,
+          ),
+        );
+      } else if (listOnly && pane < 1.0) {
         // The arriving pane reveals from the end edge laid at its FINAL
         // width, clipped — same no-reflow discipline as the expand
         // entry. Start-aligned: a rigid sheet sliding in from the end
@@ -139,10 +166,15 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
         // Divider — visual (if builder provided) or invisible drag zone.
         // In listOnly it exists whenever the pane does, riding the
         // animated seam — appearing only after settle reads as a pop-in.
+        // When a pane is collapsed the divider parks at its edge, clamped
+        // fully on-screen so it stays grabbable.
         if (!listOnly || detailId != null)
           PositionedDirectional(
             // Hit area centered on the pane border.
-            start: listWidth - widget.paneConfig.dividerHitWidth / 2,
+            start: (listWidth - widget.paneConfig.dividerHitWidth / 2).clamp(
+              0.0,
+              availableWidth - widget.paneConfig.dividerHitWidth,
+            ),
             top: 0,
             bottom: 0,
             child: GestureDetector(
@@ -151,19 +183,10 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
               onHorizontalDragUpdate: (d) =>
                   _handleDividerDragUpdate(d.primaryDelta ?? 0),
               onHorizontalDragEnd: (_) => _handleDividerDragEnd(),
-              // Registered only when enabled: a double-tap recognizer
-              // adds a disambiguation delay to other taps in the zone.
-              onDoubleTap: widget.paneConfig.collapseOnDoubleTap
-                  ? _handleDividerDoubleTap
-                  : null,
               child: SizedBox(
                 width: widget.paneConfig.dividerHitWidth,
                 child: dividerBuilder != null
-                    ? dividerBuilder(
-                        context,
-                        _isDividerDragging,
-                        _isDividerSettling,
-                      )
+                    ? dividerBuilder(context, _dividerState(availableWidth))
                     : null,
               ),
             ),
@@ -319,6 +342,21 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
   // ===========================================================================
   // SHARED SLIDING DETAIL (used by inline and overlay compact modes)
   // ===========================================================================
+
+  /// The divider's interaction state for [DividerBuilder]s.
+  DividerState _dividerState(double availableWidth) {
+    final collapsed = _paneWidth.collapsed;
+    final width = _paneWidth.width(availableWidth);
+    final max = availableWidth * widget.paneConfig.maxListRatio;
+    return DividerState(
+      isDragging: _isDividerDragging,
+      isSettling: _isDividerSettling,
+      atMinimum:
+          collapsed == null && width <= widget.paneConfig.minListWidth + 0.5,
+      atMaximum: collapsed == null && width >= max - 0.5,
+      collapsed: collapsed,
+    );
+  }
 
   /// The sliding detail pane with swipe-to-dismiss gesture.
   /// Used by both [buildCompactLayout] (inline) and

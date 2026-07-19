@@ -62,7 +62,6 @@ while an active row is not `DONE` or `WONT_DO`. Statuses: `DONE` ·
 | Pixels resize mode (pane fixed across resizes) | DONE | `PaneResizeMode.pixels` |
 | Min-width / max-ratio clamping | DONE | Min wins when the window is too narrow for the ratio cap |
 | Anchor snap points with settle animation | DONE | Nearest anchor on drag end; `isSettling` fed to divider builders |
-| Pane collapsing | DONE | Edge anchors + open clamps (`minListWidth: 0`, `maxListRatio: 1.0`) settle a pane to zero; `collapseOnDoubleTap` adds the macOS divider gesture with proportional restore. Both pane widgets |
 | Initial width from anchor index | DONE | `PaneConfig.initialAnchorIndex`, anchors non-empty |
 
 ## Components

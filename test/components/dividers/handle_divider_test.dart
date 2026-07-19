@@ -12,7 +12,8 @@ void main() {
           height: 400,
           child: Builder(
             builder: (context) =>
-                HandleDivider.builder(context, isDragging, isSettling),
+                HandleDivider.builder(context,
+                    DividerState(isDragging: isDragging, isSettling: isSettling)),
           ),
         ),
       ),

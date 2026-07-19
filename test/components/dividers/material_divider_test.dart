@@ -11,7 +11,8 @@ void main() {
           height: 400,
           child: Builder(
             builder: (context) =>
-                MaterialDivider.builder(context, isDragging, isSettling),
+                MaterialDivider.builder(context,
+                    DividerState(isDragging: isDragging, isSettling: isSettling)),
           ),
         ),
       ),
