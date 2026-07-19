@@ -21,10 +21,18 @@ class ModalConfig {
     this.backgroundColor,
     this.barrierDismissible = true,
     this.barrierColor,
+    this.barrierLabel,
     this.useSafeArea = true,
     this.isScrollControlled = true,
     this.enableDrag = true,
     this.showDragHandle,
+    this.constraints,
+    this.scrollControlDisabledMaxHeightRatio,
+    this.anchorPoint,
+    this.traversalEdgeBehavior,
+    this.requestFocus,
+    this.animationStyle,
+    this.sheetAnimationStyle,
     this.morph = true,
     this.morphDuration = const Duration(milliseconds: 350),
     this.morphCurve = Curves.easeInOutCubicEmphasized,
@@ -64,6 +72,52 @@ class ModalConfig {
   /// Forwards to `ModalBottomSheetRoute.showDragHandle`;
   /// `null` defers to `BottomSheetThemeData.showDragHandle`.
   final bool? showDragHandle;
+
+  // The fields below are pure passthroughs to the matching parameter on
+  // Flutter's own routes, under Flutter's own name — null always means
+  // "Flutter's default". Visual styling (shape, elevation, drag-handle
+  // look) is deliberately NOT here: it flows through DialogThemeData /
+  // BottomSheetThemeData, the channel that evolves with the platform.
+  // Also deliberately withheld: `clipBehavior` on the sheet (pinned to
+  // Clip.antiAlias — the container transform's landing is pixel-matched
+  // against it) and `transitionAnimationController` (the swap machinery
+  // owns the routes' lifecycles).
+
+  /// Semantic label for the barrier, read by screen readers.
+  /// Forwards to both routes' `barrierLabel`.
+  final String? barrierLabel;
+
+  /// Size constraints for the sheet form.
+  /// Forwards to `ModalBottomSheetRoute.constraints`.
+  final BoxConstraints? constraints;
+
+  /// Max height ratio for the sheet form when [isScrollControlled] is
+  /// false. Forwards to
+  /// `ModalBottomSheetRoute.scrollControlDisabledMaxHeightRatio`.
+  final double? scrollControlDisabledMaxHeightRatio;
+
+  /// Anchor for display-feature (fold / multi-screen) positioning.
+  /// Forwards to both routes' `anchorPoint`.
+  final Offset? anchorPoint;
+
+  /// Focus-traversal behavior at the dialog's edges.
+  /// Forwards to `DialogRoute.traversalEdgeBehavior`.
+  final TraversalEdgeBehavior? traversalEdgeBehavior;
+
+  /// Whether opening the modal moves focus into it.
+  /// Forwards to both routes' `requestFocus`.
+  final bool? requestFocus;
+
+  /// Entrance/exit animation styling for the dialog form. Forwards to
+  /// `DialogRoute.animationStyle`. Applies to the FIRST entrance and
+  /// exits; breakpoint swaps keep their internal zero-duration override
+  /// (the modal is already visually present).
+  final AnimationStyle? animationStyle;
+
+  /// Entrance/exit animation styling for the sheet form. Forwards to
+  /// `ModalBottomSheetRoute.sheetAnimationStyle`. Same swap override as
+  /// [animationStyle].
+  final AnimationStyle? sheetAnimationStyle;
 
   /// Whether a form swap plays a container transform — the surface glides
   /// and reshapes from one form's geometry to the other's, with the live

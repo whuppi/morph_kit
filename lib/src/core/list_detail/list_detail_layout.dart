@@ -360,7 +360,7 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
     );
     _settleController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 220),
+      duration: widget.paneConfig.settleDuration,
     );
 
     _controller.addListener(_onControllerChanged);
@@ -431,6 +431,7 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
     // user's dragged divider position.
     if (widget.paneConfig != oldWidget.paneConfig) {
       _settleController.stop();
+      _settleController.duration = widget.paneConfig.settleDuration;
       _paneWidth = PaneWidthModel(
         widget.paneConfig,
         referenceWidth: _referenceWidth,
@@ -873,7 +874,7 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
     final begin = _paneWidth.width(availableWidth);
     final curve = CurvedAnimation(
       parent: _settleController,
-      curve: Curves.easeOutCubic,
+      curve: widget.paneConfig.settleCurve,
     );
     void tick() {
       _paneWidth.setWidth(

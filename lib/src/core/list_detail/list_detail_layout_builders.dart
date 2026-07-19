@@ -141,7 +141,8 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
         // animated seam — appearing only after settle reads as a pop-in.
         if (!listOnly || detailId != null)
           PositionedDirectional(
-            start: listWidth - 12, // 24px hit area centered on the border
+            // Hit area centered on the pane border.
+            start: listWidth - widget.paneConfig.dividerHitWidth / 2,
             top: 0,
             bottom: 0,
             child: GestureDetector(
@@ -151,7 +152,7 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
                   _handleDividerDragUpdate(d.primaryDelta ?? 0),
               onHorizontalDragEnd: (_) => _handleDividerDragEnd(),
               child: SizedBox(
-                width: 24,
+                width: widget.paneConfig.dividerHitWidth,
                 child: dividerBuilder != null
                     ? dividerBuilder(
                         context,

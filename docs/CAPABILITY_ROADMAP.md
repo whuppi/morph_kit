@@ -51,7 +51,7 @@ while an active row is not `DONE` or `WONT_DO`. Statuses: `DONE` ·
 | Content state preserved across swaps | DONE | `GlobalKey` reparent through the shared Navigator overlay; unit tests + example journey |
 | Result future survives swaps | DONE | Session completer with route-identity guard |
 | Breakpoint resolution | DONE | param > inherited `AdaptiveLayoutConfig` > 720, resolved at call time |
-| Config forwarding | DONE | barrier, safe area, scroll control, drag, drag handle |
+| Config forwarding | DONE | Native passthroughs under Flutter's names: barrier (color/dismissible/label), safe area, scroll control + max-height ratio, drag + handle, sheet constraints, anchorPoint, traversalEdgeBehavior, requestFocus, entrance AnimationStyles, routeSettings, useRootNavigator. Withheld by design: sheet clipBehavior (morph landing parity), transitionAnimationController (swap machinery owns route lifecycles). Styling stays on Dialog/BottomSheet themes |
 | Animated cross-form morph (container transform) | DONE | Flight overlay carries the LIVE content between the real routes; placeholder-tracked landing; retarget + mid-flight-dismiss handled; `morph: false` restores the cut |
 
 ## Pane system (shared)

@@ -152,6 +152,52 @@ void main() {
       },
     );
 
+    testWidgets('settle knobs: custom duration and curve are honored', (
+      tester,
+    ) async {
+      await pumpApp(
+        tester,
+        buildLayout(
+          paneConfig: const PaneConfig(
+            minListWidth: 100,
+            maxListRatio: 0.9,
+            anchors: [PaneAnchor.fromStart(240), PaneAnchor.fromStart(500)],
+            initialAnchorIndex: 0,
+            settleDuration: Duration(seconds: 1),
+          ),
+        ),
+        size: expanded,
+      );
+
+      await tester.dragFrom(const Offset(240, 400), const Offset(200, 0));
+      await tester.pump(const Duration(milliseconds: 400));
+      // Default 220ms settle would already be done — the 1s one is not.
+      final mid = tester.getSize(find.byKey(const Key('list'))).width;
+      expect(mid, isNot(500));
+
+      await tester.pumpAndSettle();
+      expect(tester.getSize(find.byKey(const Key('list'))).width, 500);
+    });
+
+    testWidgets('dividerHitWidth: a wide zone accepts far-off drags', (
+      tester,
+    ) async {
+      await pumpApp(
+        tester,
+        buildLayout(paneConfig: const PaneConfig(dividerHitWidth: 120)),
+        size: expanded,
+      );
+      final before = tester.getSize(find.byKey(const Key('list'))).width;
+
+      // 50px from the border — outside the default 24px zone.
+      await tester.dragFrom(Offset(before - 50, 400), const Offset(-100, 0));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getSize(find.byKey(const Key('list'))).width,
+        lessThan(before),
+      );
+    });
+
     testWidgets('widthMemory.resetOnReentry forgets the drag on re-entry', (
       tester,
     ) async {

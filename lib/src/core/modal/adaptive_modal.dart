@@ -291,7 +291,8 @@ class _ModalSession<T> {
     bool ghost = false,
   }) {
     // Swap pushes skip the entrance animation (the modal is already
-    // visually present); exits keep Material's timing either way.
+    // visually present) and must WIN over the consumer's style; first
+    // entrances and exits use the consumer's, else Material's timing.
     final style = animate ? null : AnimationStyle(duration: Duration.zero);
     switch (mode) {
       case ModalLayoutMode.dialog:
@@ -301,9 +302,13 @@ class _ModalSession<T> {
           themes: themes,
           barrierColor: config.barrierColor ?? Colors.black54,
           barrierDismissible: config.barrierDismissible,
+          barrierLabel: config.barrierLabel,
           useSafeArea: config.useSafeArea,
           settings: settings,
-          animationStyle: style,
+          anchorPoint: config.anchorPoint,
+          traversalEdgeBehavior: config.traversalEdgeBehavior,
+          requestFocus: config.requestFocus,
+          animationStyle: style ?? config.animationStyle,
         );
       case ModalLayoutMode.sheet:
         // The ghost variant a flight lands on: chrome-less (transparent
@@ -317,13 +322,19 @@ class _ModalSession<T> {
           isScrollControlled: config.isScrollControlled,
           modalBarrierColor: config.barrierColor,
           isDismissible: config.barrierDismissible,
+          barrierLabel: config.barrierLabel,
           enableDrag: ghost ? false : config.enableDrag,
           showDragHandle: ghost ? false : config.showDragHandle,
           backgroundColor: ghost ? Colors.transparent : config.backgroundColor,
           elevation: ghost ? 0 : null,
           clipBehavior: Clip.antiAlias,
+          constraints: config.constraints,
+          scrollControlDisabledMaxHeightRatio:
+              config.scrollControlDisabledMaxHeightRatio ?? 9.0 / 16.0,
           settings: settings,
-          sheetAnimationStyle: style,
+          anchorPoint: config.anchorPoint,
+          requestFocus: config.requestFocus,
+          sheetAnimationStyle: style ?? config.sheetAnimationStyle,
         );
     }
   }

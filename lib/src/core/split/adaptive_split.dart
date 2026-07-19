@@ -159,7 +159,7 @@ class _AdaptiveSplitState extends State<AdaptiveSplit>
     );
     _settleController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 220),
+      duration: widget.paneConfig.settleDuration,
     );
   }
 
@@ -176,6 +176,7 @@ class _AdaptiveSplitState extends State<AdaptiveSplit>
     // user's dragged divider position.
     if (widget.paneConfig != oldWidget.paneConfig) {
       _settleController.stop();
+      _settleController.duration = widget.paneConfig.settleDuration;
       _paneWidth = PaneWidthModel(
         widget.paneConfig,
         referenceWidth: _referenceWidth,
@@ -229,7 +230,7 @@ class _AdaptiveSplitState extends State<AdaptiveSplit>
     final begin = _paneWidth.width(availableWidth);
     final curve = CurvedAnimation(
       parent: _settleController,
-      curve: Curves.easeOutCubic,
+      curve: widget.paneConfig.settleCurve,
     );
     void tick() {
       _paneWidth.setWidth(
@@ -314,10 +315,12 @@ class _AdaptiveSplitState extends State<AdaptiveSplit>
         Row(children: [first, second]),
         // Divider — visual (if builder provided) or invisible drag zone.
         PositionedDirectional(
+          // Hit area centered on the pane border.
           start: isStart
-              ? primaryWidth -
-                    12 // 24px hit area centered on the border
-              : availableWidth - primaryWidth - 12,
+              ? primaryWidth - widget.paneConfig.dividerHitWidth / 2
+              : availableWidth -
+                    primaryWidth -
+                    widget.paneConfig.dividerHitWidth / 2,
           top: 0,
           bottom: 0,
           child: GestureDetector(
@@ -327,7 +330,7 @@ class _AdaptiveSplitState extends State<AdaptiveSplit>
                 _handleDividerDragUpdate(d.primaryDelta ?? 0),
             onHorizontalDragEnd: (_) => _handleDividerDragEnd(),
             child: SizedBox(
-              width: 24,
+              width: widget.paneConfig.dividerHitWidth,
               child: dividerBuilder != null
                   ? dividerBuilder(
                       context,

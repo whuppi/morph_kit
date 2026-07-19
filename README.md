@@ -249,6 +249,8 @@ final choice = await showAdaptiveModal<String>(
 );
 ```
 
+`ModalConfig` forwards Flutter's own route parameters under Flutter's own names — barrier label and dismissibility, safe area, sheet constraints and drag, anchor points, focus and traversal behavior, entrance `AnimationStyle`s — with null always meaning "Flutter's default", so new platform behavior reaches you without package releases. Visual styling (shape, elevation, drag-handle look) is deliberately NOT duplicated here: it flows through `DialogThemeData` / `BottomSheetThemeData` as usual. Two params are withheld on purpose: the sheet's `clipBehavior` (the container transform's landing is pixel-matched against `Clip.antiAlias`) and `transitionAnimationController` (the swap machinery owns the routes' lifecycles).
+
 The returned future completes with the pop result no matter how many form swaps happened while the modal was open. Each form keeps its own Material surface tone (`surfaceContainerHigh` for dialogs, `surfaceContainerLow` for sheets, themable as usual); `ModalConfig(backgroundColor: ...)` pins one color across both forms when the crossfade is unwanted. One contract: return the same root widget type for both modes (like the `SizedBox` above) — the content moves between the two routes under a stable key, and a changed root type would defeat the move.
 
 ### One breakpoint for the whole app

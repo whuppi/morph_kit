@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 
 import 'package:adaptive_layouts/src/core/shared/expanded_entry_style.dart';
 import 'package:adaptive_layouts/src/core/shared/pane_anchor.dart';
@@ -29,6 +30,9 @@ class PaneConfig {
     this.resizeMode = PaneResizeMode.ratio,
     this.entryStyle = ExpandedEntryStyle.reveal,
     this.widthMemory = PaneWidthMemory.persist,
+    this.settleDuration = const Duration(milliseconds: 220),
+    this.settleCurve = Curves.easeOutCubic,
+    this.dividerHitWidth = 24,
   });
 
   /// Default width of the list pane in logical pixels.
@@ -61,6 +65,15 @@ class PaneConfig {
   /// Whether a dragged divider position survives compact spells.
   final PaneWidthMemory widthMemory;
 
+  /// Duration of the snap-to-anchor settle after a divider drag.
+  final Duration settleDuration;
+
+  /// Curve of the snap-to-anchor settle after a divider drag.
+  final Curve settleCurve;
+
+  /// Width of the divider's drag hit zone, centered on the pane border.
+  final double dividerHitWidth;
+
   /// Sensible defaults for a standard list-detail layout.
   static const standard = PaneConfig();
 
@@ -81,7 +94,10 @@ class PaneConfig {
           other.initialAnchorIndex == initialAnchorIndex &&
           other.resizeMode == resizeMode &&
           other.entryStyle == entryStyle &&
-          other.widthMemory == widthMemory;
+          other.widthMemory == widthMemory &&
+          other.settleDuration == settleDuration &&
+          other.settleCurve == settleCurve &&
+          other.dividerHitWidth == dividerHitWidth;
 
   @override
   int get hashCode => Object.hash(
@@ -93,5 +109,8 @@ class PaneConfig {
     resizeMode,
     entryStyle,
     widthMemory,
+    settleDuration,
+    settleCurve,
+    dividerHitWidth,
   );
 }
