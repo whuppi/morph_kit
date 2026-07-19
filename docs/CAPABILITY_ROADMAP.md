@@ -1,6 +1,6 @@
 # adaptive_layouts — Capability Roadmap
 
-> **Type:** roadmap · **Scope:** adaptive_layouts · **Last verified:** 2026-07-18
+> **Type:** roadmap · **Scope:** adaptive_layouts · **Last verified:** 2026-07-19
 > **Companion docs:** [`ARCHITECTURE.md`](ARCHITECTURE.md) · [`UPDATING.md`](UPDATING.md)
 
 Every capability the package offers or plans, with status. Nothing ships
@@ -15,7 +15,7 @@ while an active row is not `DONE` or `WONT_DO`. Statuses: `DONE` ·
 |---|---|---|
 | Compact ↔ expanded morph at breakpoint | DONE | `LayoutBuilder`-driven; per-widget / inherited / 720 resolution |
 | Detail state preservation across the morph | DONE | GlobalKey reparenting; covered by resize tests + example journeys |
-| Side-by-side panes with draggable divider | DONE | 24px hit zone; nullable visual builder |
+| Side-by-side panes with draggable divider | DONE | Configurable hit zone (`dividerHitWidth`, default 24); nullable visual builder |
 | Compact slide-over with swipe-to-dismiss | DONE | Threshold + fling velocity, both configurable |
 | Back-gesture interception on compact | DONE | `PopScope`; opt-out via `CompactConfig.handleBackGesture` |
 | Exit animation with outgoing-detail retention | DONE | AnimatedSwitcher pattern; internal + external dismiss paths |
@@ -27,7 +27,7 @@ while an active row is not `DONE` or `WONT_DO`. Statuses: `DONE` ·
 | Empty state builder (expanded, no selection) | DONE | Nullable; `IconMessageEmpty` shipped as a convenience |
 | RTL support | DONE | Slide, swipe, and divider drag are direction-aware |
 | A11y route parity for inline/overlay details | DONE | Open detail scopes as a route; covered content leaves the semantics tree (`ExcludeSemantics` / `BlockSemantics`); `DismissIntent` (Escape) dismisses with focus inside |
-| Breakpoint-crossing motion (both directions) | DONE | Into compact: detail grows out of its pane (inline/overlay) or the route's real entrance plays. Into expanded: the list slides in beside the full-width detail. Pane geometry still tracks drags without motion |
+| Breakpoint-crossing motion (both directions) | DONE | Into compact: detail grows out of its pane (inline/overlay) or the route's real entrance plays. Into expanded: the list slides in beside the full-width detail. Pane geometry still tracks drags without motion. Exception: parked (collapsed) panes arrive docked — no collapse replay on crossings |
 | Expand-entry list style (reveal / resize) | DONE | `PaneConfig.entryStyle`: reveal (default — final-width, clipped, no reflow) or resize (lays out live, grows into the pane) |
 | Divider position memory | DONE | Survives compact spells + rebuilds; `PaneConfig`/`PaneAnchor` value equality (incl. NaN-sentinel anchors) — inline-constructed configs never reset the model. `PaneWidthMemory.resetOnReentry` opts into a fresh divider per expanded spell (ListDetailLayout + SplitLayout) |
 | Deep-link-friendly controller semantics | DONE | Initial selection renders without animation; example ships URL sync |
@@ -64,8 +64,8 @@ while an active row is not `DONE` or `WONT_DO`. Statuses: `DONE` ·
 | Snap-collapse panes (VS Code spec) | DONE | `PaneCollapsible` per side + `collapsedSize` icon-rail; half-minimum threshold, cached-width restore, pull-tab `HandleDivider`; directional API preserved for `SplitLayout` end-positioned primary |
 | Collapsed icon-rail slots | DONE | `collapsedListBuilder`/`collapsedDetailBuilder` (+ split equivalents): rail lays out at the real `collapsedSize`; the pane parks offstage (tickers paused) with its state alive; list pane gained its own reparenting GlobalKey |
 | Divider keyboard + screen-reader support | DONE | WAI-ARIA window splitter: Tab-focusable, arrows resize, Enter toggles collapse, Home/End jump, double-click resets; semantics increase/decrease with pane-share value |
-| PaneScope (pane state for descendants) | DONE | `collapsed`/`isExpanded` + `collapse`/`restore` actions; the hamburger recipe |
-| Anchor snap points with settle animation | DONE | Nearest anchor on drag end; `isSettling` fed to divider builders |
+| PaneScope (pane state for descendants) | DONE | `collapsed`/`collapsedSize`/`isExpanded` + `collapse`/`restore` actions; the show-sidebar recipe gated on fully-hidden |
+| Anchor snap points with settle animation | DONE | Nearest anchor on drag end; `isSettling` fed to divider builders; duration/curve via `PaneConfig.settleDuration`/`settleCurve` |
 | Initial width from anchor index | DONE | `PaneConfig.initialAnchorIndex`, anchors non-empty |
 
 ## Components
@@ -80,8 +80,8 @@ while an active row is not `DONE` or `WONT_DO`. Statuses: `DONE` ·
 
 | Capability | Status | Notes |
 |---|---|---|
-| Package test suite mirroring `src/` | DONE | 65 tests: unit (controller, anchors, width model) + widget (layouts, overlay, paint probe, components) |
-| Full-app example with journey tests | DONE | `example/` — nested tab routers, URL sync, modals; 8 journeys |
+| Package test suite mirroring `src/` | DONE | 174 tests: unit (controller, anchors, width model, collapse) + widget (layouts, modes, crossings, rails, divider keyboard/semantics, components) |
+| Full-app example with journey tests | DONE | `example/` — nested tab routers, URL sync, modals, collapse rails; 12 journeys |
 | Three canonical docs | DONE | This set |
 
 ## Explicit non-goals

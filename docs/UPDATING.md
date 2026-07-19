@@ -1,6 +1,6 @@
 # adaptive_layouts — Updating
 
-> **Type:** maintenance · **Scope:** adaptive_layouts · **Last verified:** 2026-07-18
+> **Type:** maintenance · **Scope:** adaptive_layouts · **Last verified:** 2026-07-19
 > **Companion docs:** [`ARCHITECTURE.md`](ARCHITECTURE.md) · [`CAPABILITY_ROADMAP.md`](CAPABILITY_ROADMAP.md)
 
 Maintenance recipes and the invariants that must not break. When code and
@@ -52,7 +52,8 @@ JUMPS to 1.0 (no re-animation) — the detail was already visible.
 
 ## §2 — The morph invariants
 
-- **Detail and split panes mount under stable `GlobalKey`s.** Anything that
+- **The list, the detail, and both split panes mount under stable
+  `GlobalKey`s.** Anything that
   changes a pane's position in the tree between compact and expanded must
   keep the same key wrapping the same builder output, or state preservation
   (the package's core guarantee) silently dies. The resize tests fail loudly
@@ -263,10 +264,13 @@ The machinery in `list_detail_layout.dart` holds:
    at-limit flags / Home-End targets out of it. `ListDetailLayout`'s
    model space IS directional, no translation. Breaking this makes the
    pull tab point the wrong way and `PaneScope` lie.
-4. **Collapsed pane content stays laid out at its minimum width** inside
-   `ClipRect` + `OverflowBox` (start pane clips at `minListWidth`, end
-   pane at `available * (1 - maxListRatio)`) — content never reflows
-   below its floor while the slot shrinks.
+4. **Collapsed pane content reflows down to its floor width, never
+   below it.** The clip slot (`heldAtFloor`) lays content at
+   `max(floor, slot width)` — live reflow while the slot is above the
+   floor, rigid-and-clipped below it (start pane's floor is
+   `minListWidth`, end pane's is `available * (1 - maxListRatio)`).
+   No jump at an animation's first frame, no squish below the floor
+   the app designed for.
 5. **Programmatic collapse/restore snap instantly**; only the drag path
    animates. `_settleToWidth` is the single settle primitive — anchors,
    Home/End, and double-click reset all route through it.
@@ -312,7 +316,8 @@ The machinery in `list_detail_layout.dart` holds:
    internals. Core must not gain an import of the new component.
 4. Export from the barrel's components section.
 5. Mirror a test under `test/components/...` asserting the visual states
-   (idle / dragging / settling for dividers).
+   (idle / dragging / settling / focused / collapsed pull-tab for
+   dividers).
 6. Row in `CAPABILITY_ROADMAP.md`.
 
 ## §6 — Adding a config field
@@ -367,5 +372,5 @@ session — it is the reference consumers copy from.
 | Assertion: OverlayPortalController show/hide during layout | Someone reintroduced portal toggling — restore the always-showing shape (§1.1) |
 | Duplicate GlobalKey crash on resize | A pane is built in both layouts within one frame — check the mode branches only ever mount one copy |
 | Detail state resets on window resize | GlobalKey chain broken (§2) |
-| Divider ignores drags | The 24px hit zone is positioned at `paneWidth - 12`; check the width actually read from `PaneWidthModel` |
+| Divider ignores drags | The hit zone (`dividerHitWidth`, default 24) is centered on the pane border; check the width actually read from `PaneWidthModel`, and whether a collapsed pane parked it at the window edge |
 | Snap lands at the wrong place | Anchor positions clamp by min/max — verify against `pane_width_model_test.dart` expectations |
