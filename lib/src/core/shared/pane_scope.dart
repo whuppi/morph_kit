@@ -1,6 +1,6 @@
 import 'package:flutter/widgets.dart';
 
-import 'package:adaptive_layouts/src/core/shared/pane_collapse.dart';
+import 'package:morph_kit/src/core/shared/pane_collapse.dart';
 
 /// Pane-system state and actions, readable by any descendant of a pane —
 /// list content, detail content, custom dividers.

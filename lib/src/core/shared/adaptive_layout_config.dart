@@ -1,6 +1,6 @@
 import 'package:flutter/widgets.dart';
 
-/// Shared configuration for all adaptive_layouts widgets in the subtree.
+/// Shared configuration for all morph_kit widgets in the subtree.
 ///
 /// Place this high in the widget tree (e.g., above `MaterialApp`) to set
 /// defaults that all `ListDetailLayout` and future widgets inherit.

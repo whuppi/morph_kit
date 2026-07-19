@@ -3,8 +3,8 @@
 // overlay-mode details under nested tab routers, URL sync, resize-across-
 // breakpoint state preservation, and selectedIdExists auto-dismiss.
 
-import 'package:adaptive_layouts/adaptive_layouts.dart';
-import 'package:adaptive_layouts_example/main.dart';
+import 'package:morph_kit/morph_kit.dart';
+import 'package:morph_kit_example/main.dart';
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart' hide ModalRoute;
 import 'package:flutter_test/flutter_test.dart';

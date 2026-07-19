@@ -1,6 +1,6 @@
-# adaptive_layouts — Architecture
+# morph_kit — Architecture
 
-> **Type:** architecture · **Scope:** adaptive_layouts · **Status:** SHIPPED · **Last verified:** 2026-07-19
+> **Type:** architecture · **Scope:** morph_kit · **Status:** SHIPPED · **Last verified:** 2026-07-19
 > **Companion docs:** [`CAPABILITY_ROADMAP.md`](CAPABILITY_ROADMAP.md) · [`UPDATING.md`](UPDATING.md)
 
 Adaptive layout widgets that morph between compact (mobile) and expanded
@@ -17,7 +17,7 @@ URL sync, and modals).
 
 ```
 lib/
-├── adaptive_layouts.dart              # public barrel
+├── morph_kit.dart              # public barrel
 └── src/
     ├── components/                    # GROWING LIBRARY — convenience widgets
     │   ├── dividers/

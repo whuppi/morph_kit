@@ -1,4 +1,4 @@
-import 'package:adaptive_layouts/src/core/list_detail/paint_visibility_detector.dart';
+import 'package:morph_kit/src/core/list_detail/paint_visibility_detector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

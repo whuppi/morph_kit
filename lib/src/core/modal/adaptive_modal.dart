@@ -2,10 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import 'package:adaptive_layouts/src/core/modal/modal_config.dart';
-import 'package:adaptive_layouts/src/core/modal/modal_layout_mode.dart';
-import 'package:adaptive_layouts/src/core/modal/modal_morph.dart';
-import 'package:adaptive_layouts/src/core/shared/adaptive_layout_config.dart';
+import 'package:morph_kit/src/core/modal/modal_config.dart';
+import 'package:morph_kit/src/core/modal/modal_layout_mode.dart';
+import 'package:morph_kit/src/core/modal/modal_morph.dart';
+import 'package:morph_kit/src/core/shared/adaptive_layout_config.dart';
 
 /// Signature for building the modal's content.
 ///

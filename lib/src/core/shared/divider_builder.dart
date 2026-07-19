@@ -1,6 +1,6 @@
 import 'package:flutter/widgets.dart';
 
-import 'package:adaptive_layouts/src/core/shared/pane_collapse.dart';
+import 'package:morph_kit/src/core/shared/pane_collapse.dart';
 
 /// The divider's full interaction state, handed to a [DividerBuilder]
 /// every build.

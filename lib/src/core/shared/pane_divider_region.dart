@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import 'package:adaptive_layouts/src/core/shared/divider_builder.dart';
+import 'package:morph_kit/src/core/shared/divider_builder.dart';
 
 /// The divider's interactive hit region, shared by `ListDetailLayout` and
 /// `SplitLayout`: drag gestures, double-click reset, keyboard resizing,

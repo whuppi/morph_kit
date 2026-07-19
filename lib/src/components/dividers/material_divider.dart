@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'package:adaptive_layouts/src/core/shared/divider_builder.dart';
+import 'package:morph_kit/src/core/shared/divider_builder.dart';
 
 /// Material-style pane divider with drag and settle visual feedback.
 ///

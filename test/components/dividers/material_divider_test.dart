@@ -1,4 +1,4 @@
-import 'package:adaptive_layouts/adaptive_layouts.dart';
+import 'package:morph_kit/morph_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

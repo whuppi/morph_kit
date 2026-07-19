@@ -1,10 +1,10 @@
-<h1 align="center">adaptive_layouts</h1>
+<h1 align="center">morph_kit</h1>
 
 <p align="center">
-  <a href="https://pub.dev/packages/adaptive_layouts"><img src="https://img.shields.io/pub/v/adaptive_layouts.svg" alt="pub package"></a>
-  <a href="https://pub.dev/packages/adaptive_layouts/score"><img src="https://img.shields.io/pub/likes/adaptive_layouts" alt="likes"></a>
-  <a href="https://pub.dev/packages/adaptive_layouts/score"><img src="https://img.shields.io/pub/points/adaptive_layouts" alt="pub points"></a>
-  <a href="https://github.com/whuppi/adaptive_layouts"><img src="https://img.shields.io/github/stars/whuppi/adaptive_layouts?style=flat&logo=github" alt="GitHub stars"></a>
+  <a href="https://pub.dev/packages/morph_kit"><img src="https://img.shields.io/pub/v/morph_kit.svg" alt="pub package"></a>
+  <a href="https://pub.dev/packages/morph_kit/score"><img src="https://img.shields.io/pub/likes/morph_kit" alt="likes"></a>
+  <a href="https://pub.dev/packages/morph_kit/score"><img src="https://img.shields.io/pub/points/morph_kit" alt="pub points"></a>
+  <a href="https://github.com/whuppi/morph_kit"><img src="https://img.shields.io/github/stars/whuppi/morph_kit?style=flat&logo=github" alt="GitHub stars"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="license: MIT"></a>
 </p>
 
@@ -14,7 +14,7 @@ Layout widgets that morph between phone and desktop forms. On a phone, the detai
 
 > **Status:** 0.x. Pre-1.0 the minor version is the breaking axis — pin `^0.N.0` and read the changelog on minor bumps.
 
-> like it? a [⭐ star](https://github.com/whuppi/adaptive_layouts) or [👍 like](https://pub.dev/packages/adaptive_layouts) is the entire marketing budget. [Bugs & features →](https://github.com/whuppi/adaptive_layouts/issues)
+> like it? a [⭐ star](https://github.com/whuppi/morph_kit) or [👍 like](https://pub.dev/packages/morph_kit) is the entire marketing budget. [Bugs & features →](https://github.com/whuppi/morph_kit/issues)
 
 ---
 
@@ -46,7 +46,7 @@ Layout widgets that morph between phone and desktop forms. On a phone, the detai
 
 ```yaml
 dependencies:
-  adaptive_layouts:
+  morph_kit:
 ```
 
 Nothing else to do, on any platform. Pure Flutter: no native code, no assets, no setup.
@@ -58,7 +58,7 @@ Nothing else to do, on any platform. Pure Flutter: no native code, no assets, no
 Two builders, and the layout handles the rest — breakpoint switching, slide animation, swipe-to-dismiss, back gestures, state preservation:
 
 ```dart
-import 'package:adaptive_layouts/adaptive_layouts.dart';
+import 'package:morph_kit/morph_kit.dart';
 
 ListDetailLayout<String>(
   listBuilder: (context, selectedId, onSelect) => ChatList(

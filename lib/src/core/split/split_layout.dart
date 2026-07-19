@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 
-import 'package:adaptive_layouts/src/core/shared/adaptive_layout_config.dart';
-import 'package:adaptive_layouts/src/core/shared/divider_builder.dart';
-import 'package:adaptive_layouts/src/core/shared/pane_collapse.dart';
-import 'package:adaptive_layouts/src/core/shared/pane_config.dart';
-import 'package:adaptive_layouts/src/core/shared/pane_divider_region.dart';
-import 'package:adaptive_layouts/src/core/shared/pane_scope.dart';
-import 'package:adaptive_layouts/src/core/shared/pane_width_memory.dart';
-import 'package:adaptive_layouts/src/core/shared/pane_width_model.dart';
+import 'package:morph_kit/src/core/shared/adaptive_layout_config.dart';
+import 'package:morph_kit/src/core/shared/divider_builder.dart';
+import 'package:morph_kit/src/core/shared/pane_collapse.dart';
+import 'package:morph_kit/src/core/shared/pane_config.dart';
+import 'package:morph_kit/src/core/shared/pane_divider_region.dart';
+import 'package:morph_kit/src/core/shared/pane_scope.dart';
+import 'package:morph_kit/src/core/shared/pane_width_memory.dart';
+import 'package:morph_kit/src/core/shared/pane_width_model.dart';
 
 // =============================================================================
 // BUILDER TYPEDEFS

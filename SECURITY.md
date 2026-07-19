@@ -2,7 +2,7 @@
 
 ## Reporting a vulnerability
 
-Report privately via [GitHub Security Advisories](https://github.com/whuppi/adaptive_layouts/security/advisories/new). Do not open a public issue.
+Report privately via [GitHub Security Advisories](https://github.com/whuppi/morph_kit/security/advisories/new). Do not open a public issue.
 
 ## What's in scope
 

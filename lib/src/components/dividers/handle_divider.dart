@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import 'package:adaptive_layouts/src/core/shared/divider_builder.dart';
-import 'package:adaptive_layouts/src/core/shared/pane_collapse.dart';
+import 'package:morph_kit/src/core/shared/divider_builder.dart';
+import 'package:morph_kit/src/core/shared/pane_collapse.dart';
 
 /// Pane divider with hover feedback, drag handle dots, settle indicator,
 /// at-limit tinting, and a pull-tab restore affordance when a pane is

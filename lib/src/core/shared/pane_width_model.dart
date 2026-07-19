@@ -1,6 +1,6 @@
-import 'package:adaptive_layouts/src/core/shared/pane_collapse.dart';
-import 'package:adaptive_layouts/src/core/shared/pane_config.dart';
-import 'package:adaptive_layouts/src/core/shared/pane_resize_mode.dart';
+import 'package:morph_kit/src/core/shared/pane_collapse.dart';
+import 'package:morph_kit/src/core/shared/pane_config.dart';
+import 'package:morph_kit/src/core/shared/pane_resize_mode.dart';
 
 /// Pure width/drag/snap logic for a draggable pane divider.
 ///
