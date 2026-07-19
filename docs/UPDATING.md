@@ -277,7 +277,16 @@ The machinery in `list_detail_layout.dart` holds:
    together** — Flutter asserts if increase/decrease actions exist with a
    `value` but no stepped values. The share strings come from the
    layout's `_paneSharePercent`.
-8. **Rail slots replace the clip only when the app opts in.** A
+8. **Parked panes don't dance.** A collapsed pane's crossing arrives at
+   the final arrangement directly: the rail docks at its parked width
+   from frame one (fixed end slot + background spacer while the list's
+   slide-in plays; divider anchored to the DOCKED boundary), and both
+   the parked-list entry slide and the empty-pane reveal/retreat are
+   skipped when parked. The collapse animation belongs to the moment
+   the user collapsed — a window resize isn't that moment. A rail
+   entrance flourish is the app's own business inside its rail builder;
+   never stretch a fixed-width rail across an animating slot.
+8b. **Rail slots replace the clip only when the app opts in.** A
    `collapsed*Builder` lays its content at the REAL slot width
    (`StackFit.expand` — the offstage child is zero-size and must not
    set the stack's size) while the pane parks in `Offstage` +

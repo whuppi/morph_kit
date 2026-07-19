@@ -445,19 +445,40 @@ class _AdaptiveSplitState extends State<AdaptiveSplit>
     required WidgetBuilder? railBuilder,
     required AlignmentDirectional alignment,
   }) {
-    final held = OverflowBox(
-      minWidth: paneLayoutWidth,
-      maxWidth: paneLayoutWidth,
-      alignment: alignment,
-      child: pane,
+    // Reflow live down to the floor width, rigid-and-clipped below it —
+    // content never reflows below the floor the app designed for.
+    Widget heldAtFloor() => ClipRect(
+      child: LayoutBuilder(
+        builder: (context, slot) {
+          final width = slot.maxWidth < paneLayoutWidth
+              ? paneLayoutWidth
+              : slot.maxWidth;
+          return OverflowBox(
+            minWidth: width,
+            maxWidth: width,
+            alignment: alignment,
+            child: pane,
+          );
+        },
+      ),
     );
-    if (railBuilder == null) return ClipRect(child: held);
+    if (railBuilder == null) return heldAtFloor();
     // StackFit.expand — the stack must take the slot's size, not the
     // offstage child's zero size.
     return Stack(
       fit: StackFit.expand,
       children: [
-        Offstage(child: TickerMode(enabled: false, child: held)),
+        Offstage(
+          child: TickerMode(
+            enabled: false,
+            child: OverflowBox(
+              minWidth: paneLayoutWidth,
+              maxWidth: paneLayoutWidth,
+              alignment: alignment,
+              child: pane,
+            ),
+          ),
+        ),
         Builder(builder: railBuilder),
       ],
     );

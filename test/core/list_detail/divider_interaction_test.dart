@@ -387,6 +387,51 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
     });
+
+    testWidgets('parked detail arrives docked — no detail-side morph', (
+      tester,
+    ) async {
+      // Collapsed detail + selection, resize compact -> expanded: the
+      // rail docks at the end edge at its parked width from frame one;
+      // only the list plays its slide-in. The parked pane doesn't
+      // replay a collapse it already did.
+      Widget layout() => ListDetailLayout<String>(
+        controller: ListDetailController<String>(initialSelection: 'a'),
+        paneConfig: const PaneConfig(
+          collapsible: PaneCollapsible.end,
+          collapsedSize: 56,
+        ),
+        listBuilder: (context, selectedId, onSelect) =>
+            const ColoredBox(key: Key('list'), color: Color(0xFF111111)),
+        detailBuilder: (context, id, mode, onDismiss) =>
+            const ColoredBox(key: Key('detail'), color: Color(0xFF333333)),
+        collapsedDetailBuilder: (context) =>
+            const ColoredBox(key: Key('rail'), color: Color(0xFF444444)),
+      );
+      await pumpApp(tester, layout(), size: expanded);
+      await tester.dragFrom(const Offset(500, 400), const Offset(600, 0));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('rail')), findsOneWidget);
+
+      await pumpApp(tester, layout(), size: const Size(390, 800));
+      await tester.pumpAndSettle();
+
+      // Back to expanded — sample the crossing mid-flight.
+      await pumpApp(tester, layout(), size: expanded);
+      await tester.pump(const Duration(milliseconds: 100));
+      final rail = find.byKey(const Key('rail'));
+      expect(rail, findsOneWidget);
+      expect(tester.getSize(rail).width, 56);
+      expect(tester.getTopRight(rail).dx, 1000);
+      // Mid-slide the list is still arriving: the reveal discipline
+      // lays it at FINAL width clipped, end-aligned — so its leading
+      // edge sits off-screen to the start while the slot grows.
+      expect(tester.getTopLeft(find.byKey(const Key('list'))).dx, lessThan(0));
+
+      await tester.pumpAndSettle();
+      expect(tester.getSize(find.byKey(const Key('list'))).width, 1000 - 56);
+      expect(tester.getSize(rail).width, 56);
+    });
   });
 
   group('semantics', () {

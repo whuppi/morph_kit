@@ -31,7 +31,13 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
     if (_isExpanded) _lastExpandedWidth = availableWidth;
     // Both animations scale SLOTS only — the width model is untouched,
     // so dividers and anchors keep their real geometry when they settle.
-    final entry = _expandEntryController.isAnimating
+    // Parked panes don't dance: a collapsed START pane pins the entry
+    // (a 56px rail has no slide to perform) and any collapsed pane pins
+    // the detail-pane presence (the rail docks at its final position
+    // from frame one; only the list's slide-in participates).
+    final collapsed = _paneWidth.collapsed;
+    final entry =
+        collapsed != PaneSide.start && _expandEntryController.isAnimating
         ? widget.compactConfig.curve.transform(_expandEntryController.value)
         : 1.0;
     final listOnly =
@@ -40,7 +46,8 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
     // tracks the selection; in placeholder behavior it is pinned at 1
     // except while an empty-pane crossing animation (reveal or retreat)
     // is in flight.
-    final pane = listOnly || _detailPaneController.isAnimating
+    final pane =
+        collapsed == null && (listOnly || _detailPaneController.isAnimating)
         ? widget.compactConfig.curve.transform(_detailPaneController.value)
         : 1.0;
     final finalListWidth = _paneWidth.width(availableWidth);
@@ -52,8 +59,6 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
     final selectedId = _controller.selectedId;
     final detailId = listOnly ? _visibleDetailId : selectedId;
     final dividerBuilder = widget.dividerBuilder;
-
-    final collapsed = _paneWidth.collapsed;
 
     Widget list = _keyedList(selectedId);
     if (collapsed == PaneSide.start) {
@@ -159,12 +164,27 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
 
     return Stack(
       children: [
-        Row(
-          children: [
-            SizedBox(width: listWidth, child: list),
-            Expanded(child: detailSlot),
-          ],
-        ),
+        if (collapsed == PaneSide.end && entry < 1.0)
+          // The rail docks at the end edge from frame one; the list
+          // slides in beside it. The gap between them is background —
+          // the parked pane doesn't replay a collapse it already did.
+          Row(
+            children: [
+              SizedBox(width: listWidth, child: list),
+              const Expanded(child: SizedBox.shrink()),
+              SizedBox(
+                width: widget.paneConfig.collapsedSize,
+                child: detailSlot,
+              ),
+            ],
+          )
+        else
+          Row(
+            children: [
+              SizedBox(width: listWidth, child: list),
+              Expanded(child: detailSlot),
+            ],
+          ),
         // Divider — visual (if builder provided) or invisible drag zone.
         // In listOnly it exists whenever the pane does, riding the
         // animated seam — appearing only after settle reads as a pop-in.
@@ -172,11 +192,17 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
         // fully on-screen so it stays grabbable.
         if (!listOnly || detailId != null)
           PositionedDirectional(
-            // Hit area centered on the pane border.
-            start: (listWidth - widget.paneConfig.dividerHitWidth / 2).clamp(
-              0.0,
-              availableWidth - widget.paneConfig.dividerHitWidth,
-            ),
+            // Hit area centered on the pane border — the DOCKED boundary
+            // while a parked detail's crossing slide runs.
+            start:
+                ((collapsed == PaneSide.end && entry < 1.0
+                            ? finalListWidth
+                            : listWidth) -
+                        widget.paneConfig.dividerHitWidth / 2)
+                    .clamp(
+                      0.0,
+                      availableWidth - widget.paneConfig.dividerHitWidth,
+                    ),
             top: 0,
             bottom: 0,
             child: PaneDividerRegion(
@@ -368,19 +394,42 @@ extension _LayoutBuilders<T> on _ListDetailLayoutState<T> {
     required WidgetBuilder? railBuilder,
     required AlignmentDirectional alignment,
   }) {
-    final held = OverflowBox(
-      minWidth: paneLayoutWidth,
-      maxWidth: paneLayoutWidth,
-      alignment: alignment,
-      child: pane,
+    // Mid-crossing the slot is far wider than the parked width — a
+    // 56px-designed rail stretched over it reads broken. Ride the
+    // shrink with real content instead: reflow live down to the floor
+    // width, rigid-and-clipped below it. The rail takes over on arrival.
+    Widget heldAtFloor() => ClipRect(
+      child: LayoutBuilder(
+        builder: (context, slot) {
+          final width = slot.maxWidth < paneLayoutWidth
+              ? paneLayoutWidth
+              : slot.maxWidth;
+          return OverflowBox(
+            minWidth: width,
+            maxWidth: width,
+            alignment: alignment,
+            child: pane,
+          );
+        },
+      ),
     );
-    if (railBuilder == null) return ClipRect(child: held);
+    if (railBuilder == null) return heldAtFloor();
     // StackFit.expand — the stack must take the slot's size, not the
     // offstage child's zero size.
     return Stack(
       fit: StackFit.expand,
       children: [
-        Offstage(child: TickerMode(enabled: false, child: held)),
+        Offstage(
+          child: TickerMode(
+            enabled: false,
+            child: OverflowBox(
+              minWidth: paneLayoutWidth,
+              maxWidth: paneLayoutWidth,
+              alignment: alignment,
+              child: pane,
+            ),
+          ),
+        ),
         Builder(builder: railBuilder),
       ],
     );

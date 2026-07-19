@@ -1075,7 +1075,14 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
     // arrangement flip — it reveals from the end edge on expand and
     // retreats into it on shrink, like any pane. Seeds skip when already
     // animating so a rapid re-cross continues from the current position.
+    // Parked panes don't dance: with a collapsed pane the crossing
+    // arrives at the final arrangement directly. The collapse animation
+    // belongs to the moment the user collapsed; a window resize isn't
+    // that moment. (Route mode's popping route still animates the
+    // full-screen detail away — that story is already told.)
+    final parked = _paneWidth.collapsed != null;
     final placeholderEmpty =
+        !parked &&
         widget.expandedEmptyBehavior == ExpandedEmptyBehavior.placeholder &&
         !_controller.hasSelection;
     if (crossing.intoExpanded && placeholderEmpty) {
@@ -1109,10 +1116,13 @@ class _ListDetailLayoutState<T> extends State<ListDetailLayout<T>>
           referenceWidth: _referenceWidth,
         );
       }
-      if (_controller.hasSelection) {
+      if (_controller.hasSelection && _paneWidth.collapsed != PaneSide.start) {
         // The detail starts full width — matching what compact just
         // showed, route or slide-over alike — and the list slides in,
-        // pushing it into its pane.
+        // pushing it into its pane. A parked LIST skips this: a 56px
+        // rail has no slide to perform, so the arrangement just appears.
+        // (With a parked DETAIL the slide still plays — the rail docks
+        // at the end edge from frame one and the list slides in.)
         _expandEntryController.value = 0.0;
         unawaited(_expandEntryController.forward());
       }
