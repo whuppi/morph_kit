@@ -28,7 +28,7 @@ export 'src/core/list_detail/compact_config.dart';
 export 'src/core/modal/adaptive_modal.dart';
 export 'src/core/modal/modal_config.dart';
 export 'src/core/modal/modal_layout_mode.dart';
-export 'src/core/split/adaptive_split.dart';
+export 'src/core/split/split_layout.dart';
 
 // Core — shared configuration + vocabulary
 export 'src/core/shared/adaptive_layout_config.dart';

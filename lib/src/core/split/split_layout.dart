@@ -13,7 +13,7 @@ import 'package:adaptive_layouts/src/core/shared/pane_width_model.dart';
 // BUILDER TYPEDEFS
 // =============================================================================
 
-/// Builder for a pane in an [AdaptiveSplit].
+/// Builder for a pane in an [SplitLayout].
 ///
 /// [isExpanded] is true when in side-by-side expanded layout,
 /// false when in compact (stacked) layout.
@@ -61,7 +61,7 @@ enum SplitCompactBehavior {
 /// ## Usage
 ///
 /// ```dart
-/// AdaptiveSplit(
+/// SplitLayout(
 ///   primaryBuilder: (context, isExpanded) => AlbumArt(),
 ///   secondaryBuilder: (context, isExpanded) => QueueOrVisualizer(),
 ///   dividerBuilder: HandleDivider.builder,
@@ -71,9 +71,9 @@ enum SplitCompactBehavior {
 ///   ),
 /// )
 /// ```
-class AdaptiveSplit extends StatefulWidget {
+class SplitLayout extends StatefulWidget {
   /// Creates an adaptive two-pane split layout.
-  const AdaptiveSplit({
+  const SplitLayout({
     super.key,
     required this.primaryBuilder,
     required this.secondaryBuilder,
@@ -128,14 +128,14 @@ class AdaptiveSplit extends StatefulWidget {
   final WidgetBuilder? collapsedSecondaryBuilder;
 
   @override
-  State<AdaptiveSplit> createState() => _AdaptiveSplitState();
+  State<SplitLayout> createState() => _SplitLayoutState();
 }
 
 // =============================================================================
 // STATE
 // =============================================================================
 
-class _AdaptiveSplitState extends State<AdaptiveSplit>
+class _SplitLayoutState extends State<SplitLayout>
     with SingleTickerProviderStateMixin {
   // ---------------------------------------------------------------------------
   // Divider drag state — width/clamp/snap logic lives in the shared model;
@@ -189,7 +189,7 @@ class _AdaptiveSplitState extends State<AdaptiveSplit>
   bool _isExpanded = false;
 
   @override
-  void didUpdateWidget(AdaptiveSplit oldWidget) {
+  void didUpdateWidget(SplitLayout oldWidget) {
     super.didUpdateWidget(oldWidget);
     // Value comparison, not identity: apps construct configs inline in
     // build, and resetting the model on every rebuild would erase the

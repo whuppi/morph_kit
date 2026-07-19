@@ -4,7 +4,7 @@ import 'package:adaptive_layouts/src/core/shared/pane_resize_mode.dart';
 
 /// Pure width/drag/snap logic for a draggable pane divider.
 ///
-/// Shared by `ListDetailLayout` and `AdaptiveSplit` so both widgets resize,
+/// Shared by `ListDetailLayout` and `SplitLayout` so both widgets resize,
 /// clamp, and anchor-snap identically. Owns no animation — the widget drives
 /// the settle animation and feeds interpolated widths back via [setWidth].
 ///
@@ -29,7 +29,7 @@ class PaneWidthModel {
 
   /// Which sides may collapse, in MODEL space (start = the pane this
   /// model's width measures). Layouts whose measured pane isn't on the
-  /// directional start (`AdaptiveSplit` with an end-positioned primary)
+  /// directional start (`SplitLayout` with an end-positioned primary)
   /// pass a flipped value so [PaneConfig.collapsible] stays directional.
   final PaneCollapsible collapsible;
 

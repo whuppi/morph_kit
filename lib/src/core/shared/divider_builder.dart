@@ -65,7 +65,7 @@ class DividerState {
 
 /// Builder for a pane divider in expanded layout.
 ///
-/// Shared across `ListDetailLayout`, `AdaptiveSplit`, and any future
+/// Shared across `ListDetailLayout`, `SplitLayout`, and any future
 /// multi-pane layout widget. Use a shipped component
 /// (`MaterialDivider.builder`, `HandleDivider.builder`) or build your own.
 typedef DividerBuilder =

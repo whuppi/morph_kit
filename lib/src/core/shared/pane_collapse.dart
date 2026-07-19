@@ -1,7 +1,7 @@
 /// A side of a pane divider, in directional terms (start = left in LTR).
 ///
 /// In `ListDetailLayout` the start pane is the list and the end pane is
-/// the detail. In `AdaptiveSplit` the start pane is whichever pane sits
+/// the detail. In `SplitLayout` the start pane is whichever pane sits
 /// at the start per `SplitPrimaryPosition`.
 enum PaneSide {
   /// The pane on the directional start side of the divider.

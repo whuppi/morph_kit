@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:adaptive_layouts/src/core/shared/divider_builder.dart';
 
 /// The divider's interactive hit region, shared by `ListDetailLayout` and
-/// `AdaptiveSplit`: drag gestures, double-click reset, keyboard resizing,
+/// `SplitLayout`: drag gestures, double-click reset, keyboard resizing,
 /// and screen-reader semantics — the WAI-ARIA window-splitter pattern
 /// mapped to Flutter.
 ///

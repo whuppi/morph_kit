@@ -47,7 +47,7 @@ lib/
         │   ├── pane_resize_mode.dart          # ratio vs pixels
         │   └── pane_width_model.dart          # width/drag/clamp/snap logic (internal)
         └── split/
-            └── adaptive_split.dart            # generic two-pane split widget
+            └── split_layout.dart            # generic two-pane split widget
 ```
 
 **Dependency rule (load-bearing): core never imports components.** Components
@@ -77,7 +77,7 @@ Builders receive everything they need — `listBuilder(context, selectedId,
 onSelect)` and `detailBuilder(context, id, mode, onDismiss)` — so app code
 never touches layout internals.
 
-### `AdaptiveSplit`
+### `SplitLayout`
 
 The generic sibling: two panes (primary / secondary) with no selection
 concept. Expanded = side-by-side with the same draggable divider; compact =
@@ -198,7 +198,7 @@ machinery is in [`UPDATING.md`](UPDATING.md).
 
 ## 4. State preservation across the morph
 
-Detail (and both `AdaptiveSplit` panes) are mounted under stable
+Detail (and both `SplitLayout` panes) are mounted under stable
 `GlobalKey`s. When the layout morphs compact ↔ expanded, Flutter reparents
 the same element instead of rebuilding it — text drafts, scroll positions,
 and in-flight animations survive a window resize. This is the package's
@@ -237,7 +237,7 @@ as pane content does between compact and expanded builds.
 
 The divider itself is a 24px invisible hit zone centered on the pane border;
 `dividerBuilder` (nullable) draws the visual inside it. Divider drag is
-RTL-aware, and inverted for an end-positioned `AdaptiveSplit` primary.
+RTL-aware, and inverted for an end-positioned `SplitLayout` primary.
 
 ---
 

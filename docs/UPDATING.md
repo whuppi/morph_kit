@@ -258,7 +258,7 @@ The machinery in `list_detail_layout.dart` holds:
 3. **`PaneSide` / `PaneCollapsible` are DIRECTIONAL in every public
    surface** (config, `DividerState.collapsed`, `PaneScope`). The width
    model works in model space (start = the measured pane).
-   `AdaptiveSplit` with an end-positioned primary translates at its
+   `SplitLayout` with an end-positioned primary translates at its
    boundary: flipped `collapsible` into the model, flipped `collapsed` /
    at-limit flags / Home-End targets out of it. `ListDetailLayout`'s
    model space IS directional, no translation. Breaking this makes the

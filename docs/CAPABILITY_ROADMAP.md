@@ -29,11 +29,11 @@ while an active row is not `DONE` or `WONT_DO`. Statuses: `DONE` ·
 | A11y route parity for inline/overlay details | DONE | Open detail scopes as a route; covered content leaves the semantics tree (`ExcludeSemantics` / `BlockSemantics`); `DismissIntent` (Escape) dismisses with focus inside |
 | Breakpoint-crossing motion (both directions) | DONE | Into compact: detail grows out of its pane (inline/overlay) or the route's real entrance plays. Into expanded: the list slides in beside the full-width detail. Pane geometry still tracks drags without motion |
 | Expand-entry list style (reveal / resize) | DONE | `PaneConfig.entryStyle`: reveal (default — final-width, clipped, no reflow) or resize (lays out live, grows into the pane) |
-| Divider position memory | DONE | Survives compact spells + rebuilds; `PaneConfig`/`PaneAnchor` value equality (incl. NaN-sentinel anchors) — inline-constructed configs never reset the model. `PaneWidthMemory.resetOnReentry` opts into a fresh divider per expanded spell (ListDetailLayout + AdaptiveSplit) |
+| Divider position memory | DONE | Survives compact spells + rebuilds; `PaneConfig`/`PaneAnchor` value equality (incl. NaN-sentinel anchors) — inline-constructed configs never reset the model. `PaneWidthMemory.resetOnReentry` opts into a fresh divider per expanded spell (ListDetailLayout + SplitLayout) |
 | Deep-link-friendly controller semantics | DONE | Initial selection renders without animation; example ships URL sync |
 | Empty detail slot behaviors | DONE | `ExpandedEmptyBehavior`: placeholder (default, `emptyStateBuilder`) or listOnly (full-width list; the pane reveals from the end edge on selection, retreats on dismiss). Auto-select-first stays an app-side recipe (documented; example ⚙ toggle) |
 
-## AdaptiveSplit
+## SplitLayout
 
 | Capability | Status | Notes |
 |---|---|---|
@@ -61,7 +61,7 @@ while an active row is not `DONE` or `WONT_DO`. Statuses: `DONE` ·
 | Ratio resize mode (pane scales with window) | DONE | Default; `defaultListWidth` referenced to the breakpoint |
 | Pixels resize mode (pane fixed across resizes) | DONE | `PaneResizeMode.pixels` |
 | Min-width / max-ratio clamping | DONE | Min wins when the window is too narrow for the ratio cap |
-| Snap-collapse panes (VS Code spec) | DONE | `PaneCollapsible` per side + `collapsedSize` icon-rail; half-minimum threshold, cached-width restore, pull-tab `HandleDivider`; directional API preserved for `AdaptiveSplit` end-positioned primary |
+| Snap-collapse panes (VS Code spec) | DONE | `PaneCollapsible` per side + `collapsedSize` icon-rail; half-minimum threshold, cached-width restore, pull-tab `HandleDivider`; directional API preserved for `SplitLayout` end-positioned primary |
 | Collapsed icon-rail slots | DONE | `collapsedListBuilder`/`collapsedDetailBuilder` (+ split equivalents): rail lays out at the real `collapsedSize`; the pane parks offstage (tickers paused) with its state alive; list pane gained its own reparenting GlobalKey |
 | Divider keyboard + screen-reader support | DONE | WAI-ARIA window splitter: Tab-focusable, arrows resize, Enter toggles collapse, Home/End jump, double-click resets; semantics increase/decrease with pane-share value |
 | PaneScope (pane state for descendants) | DONE | `collapsed`/`isExpanded` + `collapse`/`restore` actions; the hamburger recipe |

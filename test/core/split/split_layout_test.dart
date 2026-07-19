@@ -12,7 +12,7 @@ void main() {
     PaneConfig paneConfig = const PaneConfig(),
     DividerBuilder? dividerBuilder,
   }) {
-    return AdaptiveSplit(
+    return SplitLayout(
       primaryPosition: primaryPosition,
       compactBehavior: compactBehavior,
       paneConfig: paneConfig,
@@ -212,7 +212,7 @@ void main() {
     testWidgets('PaneScope actions speak directional sides', (tester) async {
       await pumpApp(
         tester,
-        AdaptiveSplit(
+        SplitLayout(
           primaryPosition: SplitPrimaryPosition.end,
           paneConfig: const PaneConfig(collapsible: PaneCollapsible.end),
           primaryBuilder: (context, isExpanded) =>
