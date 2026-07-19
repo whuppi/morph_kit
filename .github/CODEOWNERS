@@ -6,7 +6,7 @@
 # Order matters — last match wins (gitignore rules).
 
 # Default: maintainers team owns everything
-*                          @whuppi/adaptive_layouts-maintainers
+*                          @whuppi/morph_kit-maintainers
 
 # Release files: repo owner only (contributors don't write changelogs or versions)
 /CHANGELOG.md              @chaudharydeepanshu
