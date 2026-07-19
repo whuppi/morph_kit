@@ -41,6 +41,9 @@ export 'src/core/shared/pane_divider_region.dart';
 export 'src/core/shared/pane_scope.dart';
 export 'src/core/shared/pane_resize_mode.dart';
 export 'src/core/shared/pane_width_memory.dart';
+export 'src/core/three_pane/pane_role.dart';
+export 'src/core/three_pane/pane_spec.dart';
+export 'src/core/three_pane/three_pane_layout.dart';
 
 // Components — convenience library (replaceable)
 export 'src/components/dividers/handle_divider.dart';
